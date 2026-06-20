@@ -1219,7 +1219,26 @@ async function renderBusManagement() {
       <div style="flex:1;min-width:120px"><div style="font-family:Nunito;font-weight:900;font-size:1rem">${esc(bus.name)}</div>
         <div style="font-size:.8rem;color:var(--text-muted)">${esc(bus.licensePlate)} · ${esc(bus.fuelType)}</div></div>
       <button class="btn btn-secondary btn-sm" onclick="openBusForm('${esc(bus.licensePlate)}')">✏️ Bewerken</button>
+      <button class="btn btn-danger btn-sm" onclick="deleteBus('${esc(bus.licensePlate)}','${esc(bus.name)}')">🗑️ Verwijderen</button>
     </div>`).join('');
+}
+
+async function deleteBus(plate, name) {
+  // Count entries so user knows what they're deleting
+  showSpinner();
+  const entries = await getBusEntries(plate);
+  hideSpinner();
+  const entryCount = entries.length;
+  const msg = entryCount > 0
+    ? `Weet je zeker dat je "${name}" wilt verwijderen?\n\nDeze bus heeft ${entryCount} tankbeurt${entryCount === 1 ? '' : 'en'} — die worden ook verwijderd. Dit kan niet ongedaan worden gemaakt.`
+    : `Weet je zeker dat je "${name}" wilt verwijderen? Dit kan niet ongedaan worden gemaakt.`;
+  if (!confirm(msg)) return;
+  showSpinner();
+  // fuel_entries are deleted automatically via ON DELETE CASCADE in the schema
+  const { error } = await supabase.from('buses').delete().eq('license_plate', plate);
+  hideSpinner();
+  if (error) { alert('Verwijderen mislukt: ' + error.message); return; }
+  renderBusManagement();
 }
 
 /* ════════════════════════════════════════════════════
