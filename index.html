@@ -851,18 +851,18 @@ let globalChartInstance = null;
 
 async function renderDashboard() {
   showSpinner();
-  const buses = await getVoertuigen();
-  const allEntriesArr = await Promise.all(buses.map(b => getVoertuigEntries(b.licensePlate)));
+  const voertuigen = await getVoertuigen();
+  const allEntriesArr = await Promise.all(voertuigen.map(v => getVoertuigEntries(v.licensePlate)));
   hideSpinner();
 
   const entriesMap = {};
-  buses.forEach((b,i) => entriesMap[b.licensePlate] = allEntriesArr[i]);
+  voertuigen.forEach((v,i) => entriesMap[v.licensePlate] = allEntriesArr[i]);
 
   const grid = document.getElementById('voertuig-grid');
   const empty = document.getElementById('dashboard-empty');
   const chartCard = document.getElementById('global-chart-card');
 
-  if (!buses.length) { empty.style.display='block'; grid.innerHTML=''; chartCard.style.display='none'; return; }
+  if (!voertuigen.length) { empty.style.display='block'; grid.innerHTML=''; chartCard.style.display='none'; return; }
   empty.style.display = 'none'; chartCard.style.display = 'block';
 
   grid.innerHTML = voertuigen.map(voertuig => {
@@ -892,10 +892,10 @@ async function renderDashboard() {
     </div>`;
   }).join('');
 
-  renderGlobalChart(buses, entriesMap);
+  renderGlobalChart(voertuigen, entriesMap);
 }
 
-function renderGlobalChart(buses, entriesMap) {
+function renderGlobalChart(voertuigen, entriesMap) {
   if (globalChartInstance) { globalChartInstance.destroy(); globalChartInstance = null; }
   const ctx = document.getElementById('globalChart');
   if (!ctx) return;
@@ -922,8 +922,8 @@ let _detailVoertuig = null;
 
 async function renderVoertuigDetail(plate) {
   showSpinner();
-  const buses = await getVoertuigen();
-  _detailVoertuig = buses.find(b=>b.licensePlate===plate);
+  const alleVoertuigen = await getVoertuigen();
+  _detailVoertuig = alleVoertuigen.find(v=>v.licensePlate===plate);
   _detailAllEntries = await getVoertuigEntries(plate);
   hideSpinner();
 
@@ -1081,12 +1081,12 @@ let _pendingEntry = null;
 async function renderTankForm(plate) {
   _pendingEntry = null;
   showSpinner();
-  const buses = await getVoertuigen();
+  const voertuigen = await getVoertuigen();
   hideSpinner();
 
   const sel = document.getElementById('tank-voertuig-select');
   sel.innerHTML = '<option value="">— Kies een voertuig —</option>' +
-    buses.map(b=>`<option value="${esc(b.licensePlate)}">${esc(b.name)} (${esc(b.licensePlate)})</option>`).join('');
+    voertuigen.map(v=>`<option value="${esc(v.licensePlate)}">${esc(v.name)} (${esc(v.licensePlate)})</option>`).join('');
 
   ['tank-odometer','tank-liters','tank-cost','tank-note'].forEach(id=>document.getElementById(id).value='');
   ['err-tank-voertuig','err-tank-odometer','err-tank-liters','err-tank-cost'].forEach(id=>document.getElementById(id).textContent='');
@@ -1097,14 +1097,14 @@ async function renderTankForm(plate) {
   document.getElementById('tank-onbekend-voertuig-alert').style.display = 'none';
 
   if (plate) {
-    const voertuig = voertuigen.find(b=>b.licensePlate===plate);
+    const voertuig = voertuigen.find(v=>v.licensePlate===plate);
     if (!voertuig) document.getElementById('tank-onbekend-voertuig-alert').style.display = 'block';
     else { sel.value = plate; showVoertuigPreview(voertuig); }
   } else {
     document.getElementById('tank-geen-voertuig-alert').style.display = 'block';
   }
   sel.onchange = async () => {
-    const b = buses.find(b=>b.licensePlate===sel.value);
+    const b = voertuigen.find(v=>v.licensePlate===sel.value);
     if (b) { showVoertuigPreview(b); await loadOdometerHint(b.licensePlate); }
     else {
       document.getElementById('selected-voertuig-preview').style.display='none';
@@ -1121,7 +1121,7 @@ async function renderTankForm(plate) {
   });
   // If plate was pre-selected via URL, also load the hint
   if (plate) {
-    const voertuig = voertuigen.find(b=>b.licensePlate===plate);
+    const voertuig = voertuigen.find(v=>v.licensePlate===plate);
     if (voertuig) await loadOdometerHint(plate);
   }
 }
@@ -1356,9 +1356,9 @@ async function saveVoertuig() {
 }
 
 async function renderVoertuigBeheer() {
-  showSpinner(); const buses = await getVoertuigen(); hideSpinner();
+  showSpinner(); const voertuigen = await getVoertuigen(); hideSpinner();
   const list = document.getElementById('voertuigen-list');
-  if (!buses.length) { list.innerHTML=`<div class="card empty-state"><div class="empty-state-icon">🚐</div><div class="empty-state-title">Nog geen voertuigen</div><p class="empty-state-text">Voeg je eerste voertuig toe hierboven.</p></div>`; return; }
+  if (!voertuigen.length) { list.innerHTML=`<div class="card empty-state"><div class="empty-state-icon">🚐</div><div class="empty-state-title">Nog geen voertuigen</div><p class="empty-state-text">Voeg je eerste voertuig toe hierboven.</p></div>`; return; }
   list.innerHTML = voertuigen.map(voertuig=>`
     <div class="card" style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">
       ${camperSVG(voertuig.iconColor,44)}
@@ -1391,9 +1391,9 @@ async function deleteVoertuig(plate, name) {
    NFC / QR / EXPORT
    ════════════════════════════════════════════════════ */
 async function renderNFC() {
-  showSpinner(); const buses=await getVoertuigen(); hideSpinner();
+  showSpinner(); const voertuigen=await getVoertuigen(); hideSpinner();
   const list=document.getElementById('nfc-list');
-  if(!buses.length){list.innerHTML='<div class="alert alert-info">Voeg eerst een voertuig toe.</div>';return;}
+  if(!voertuigen.length){list.innerHTML='<div class="alert alert-info">Voeg eerst een voertuig toe.</div>';return;}
   const base=window.location.origin+window.location.pathname;
   list.innerHTML=voertuigen.map(voertuig=>{
     const url=`${base}?voertuig=${encodeURIComponent(voertuig.licensePlate)}`;
@@ -1406,9 +1406,9 @@ async function renderNFC() {
 function copyToClipboard(text,el){navigator.clipboard.writeText(text).then(()=>{const o=el.textContent;el.textContent='✅ Gekopieerd!';setTimeout(()=>el.textContent=o,1500);});}
 
 async function renderQR() {
-  showSpinner(); const buses=await getVoertuigen(); hideSpinner();
+  showSpinner(); const voertuigen=await getVoertuigen(); hideSpinner();
   const list=document.getElementById('qr-list');
-  if(!buses.length){list.innerHTML='<div class="alert alert-info">Voeg eerst een voertuig toe.</div>';return;}
+  if(!voertuigen.length){list.innerHTML='<div class="alert alert-info">Voeg eerst een voertuig toe.</div>';return;}
   const base=window.location.origin+window.location.pathname;
   list.innerHTML=voertuigen.map((voertuig,i)=>`
     <div class="qr-card">
@@ -1425,9 +1425,9 @@ async function renderQR() {
 function downloadQR(idx,name){const wrap=document.getElementById('qr-wrap-'+idx);const img=wrap?.querySelector('img');if(!img)return;const a=document.createElement('a');a.href=img.src;a.download='qr-'+name.replace(/\s+/g,'-')+'.png';a.click();}
 
 async function renderExport() {
-  showSpinner(); const buses=await getVoertuigen(); hideSpinner();
+  showSpinner(); const voertuigen=await getVoertuigen(); hideSpinner();
   const list=document.getElementById('export-list');
-  if(!buses.length){list.innerHTML='<div class="alert alert-info">Voeg eerst een voertuig toe.</div>';return;}
+  if(!voertuigen.length){list.innerHTML='<div class="alert alert-info">Voeg eerst een voertuig toe.</div>';return;}
   list.innerHTML=`
     <div class="card"><div class="section-hdr">📥 Per voertuig</div>
       ${voertuigen.map(voertuig=>`<div style="display:flex;align-items:center;gap:12px;margin-bottom:10px;flex-wrap:wrap">
@@ -1450,7 +1450,7 @@ async function exportBusCSV(plate) {
   downloadCSV(rowsToCSV(rows),`tankie-${plate}.csv`);
 }
 async function exportAllCSV() {
-  showSpinner(); const buses=await getVoertuigen(); const allRows=[];
+  showSpinner(); const voertuigen=await getVoertuigen(); const allRows=[];
   for(const voertuig of voertuigen){const entries=await getVoertuigEntries(voertuig.licensePlate);entries.forEach(e=>allRows.push([voertuig.licensePlate,voertuig.name,voertuig.fuelType,e.datetime,csvNum(e.odometer,0),csvNum(e.liters,2),csvNum(e.totalCost,2),(e.note||'').replace(/"/g,'""'),e.excluded_from_stats?'Ja':'Nee',csvNum(e.calculatedDistance,0),csvNum(e.calculatedKmPerLiter,1),csvNum(e.calculatedLitersPer100Km,1),csvNum(e.calculatedCostPerKm,2)]));};
   hideSpinner(); downloadCSV(rowsToCSV(allRows),'tankie-alle-voertuigen.csv');
 }
