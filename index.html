@@ -373,6 +373,16 @@
   .spinner { width: 40px; height: 40px; border: 4px solid var(--moss-light); border-top-color: var(--moss); border-radius: 50%; animation: spin .7s linear infinite; }
   @keyframes spin { to { transform: rotate(360deg); } }
   .spinner-label { font-family: 'Nunito', sans-serif; font-weight: 800; color: var(--moss-dark); }
+
+  /* DATE FILTER */
+  .filter-card { background: var(--white); border-radius: var(--radius); box-shadow: var(--shadow); padding: 16px 18px; margin-bottom: 16px; }
+  .filter-row { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; }
+  .filter-group { display: flex; flex-direction: column; gap: 4px; flex: 1; min-width: 130px; }
+  .filter-label { font-size: .72rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: .04em; }
+  .filter-input { padding: 9px 12px; border-radius: var(--radius-sm); border: 2px solid var(--sand-dark); background: var(--cream); font-family: 'Nunito Sans', sans-serif; font-size: .9rem; color: var(--text); }
+  .filter-input:focus { outline: none; border-color: var(--moss); background: var(--white); }
+  .filter-stats { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; margin-top: 14px; padding-top: 14px; border-top: 2px solid var(--sand-dark); }
+  .filter-active { border: 2px solid var(--moss); }
 </style>
 </head>
 <body>
@@ -448,21 +458,21 @@
       <!-- Kilometerstand -->
       <div class="form-group">
         <label class="form-label">Kilometerstand (km) *</label>
-        <input type="number" class="form-input" id="tank-odometer" min="0" step="1" placeholder="bv. 102450">
+        <input type="text" inputmode="numeric" class="form-input" id="tank-odometer" placeholder="bv. 102.450" autocomplete="off">
         <div class="error-msg" id="err-tank-odometer"></div>
       </div>
 
       <!-- Liters -->
       <div class="form-group">
         <label class="form-label">Liters getankt *</label>
-        <input type="number" class="form-input" id="tank-liters" min="0.01" step="0.01" placeholder="bv. 45.20">
+        <input type="text" inputmode="decimal" class="form-input" id="tank-liters" placeholder="bv. 45,20" autocomplete="off">
         <div class="error-msg" id="err-tank-liters"></div>
       </div>
 
       <!-- Kosten -->
       <div class="form-group">
         <label class="form-label">Totaalbedrag (€) *</label>
-        <input type="number" class="form-input" id="tank-cost" min="0.01" step="0.01" placeholder="bv. 78.50">
+        <input type="text" inputmode="decimal" class="form-input" id="tank-cost" placeholder="bv. 78,50" autocomplete="off">
         <div class="error-msg" id="err-tank-cost"></div>
       </div>
 
@@ -589,17 +599,17 @@
     <input type="hidden" id="edit-entry-plate">
     <div class="form-group">
       <label class="form-label">Kilometerstand (km) *</label>
-      <input type="number" class="form-input" id="edit-odometer" min="0" step="1">
+      <input type="text" inputmode="numeric" class="form-input" id="edit-odometer" autocomplete="off">
       <div class="error-msg" id="err-edit-odometer"></div>
     </div>
     <div class="form-group">
       <label class="form-label">Liters *</label>
-      <input type="number" class="form-input" id="edit-liters" min="0.01" step="0.01">
+      <input type="text" inputmode="decimal" class="form-input" id="edit-liters" autocomplete="off">
       <div class="error-msg" id="err-edit-liters"></div>
     </div>
     <div class="form-group">
       <label class="form-label">Totaalbedrag (€) *</label>
-      <input type="number" class="form-input" id="edit-cost" min="0.01" step="0.01">
+      <input type="text" inputmode="decimal" class="form-input" id="edit-cost" autocomplete="off">
       <div class="error-msg" id="err-edit-cost"></div>
     </div>
     <div class="form-group">
@@ -903,48 +913,132 @@ function renderGlobalChart(buses, entriesMap) {
    ════════════════════════════════════════════════════ */
 let detailChartKml = null, detailChartCost = null;
 
+// Store all entries for current bus so filter can work without re-fetching
+let _detailAllEntries = [];
+let _detailBus = null;
+
 async function renderBusDetail(plate) {
   showSpinner();
   const buses = await getBuses();
-  const bus = buses.find(b=>b.licensePlate===plate);
-  const entries = await getBusEntries(plate);
+  _detailBus = buses.find(b=>b.licensePlate===plate);
+  _detailAllEntries = await getBusEntries(plate);
   hideSpinner();
 
   const container = document.getElementById('bus-detail-content');
-  if (!bus) { container.innerHTML='<div class="alert alert-error">Bus niet gevonden.</div>'; return; }
-  const stats = getStats(entries);
-  const nd = v => v!=null?v:'–';
+  if (!_detailBus) { container.innerHTML='<div class="alert alert-error">Bus niet gevonden.</div>'; return; }
 
+  // Build the static shell (header + filter card + placeholder divs)
   container.innerHTML = `
     <div style="display:flex;align-items:center;gap:14px;margin-bottom:14px;flex-wrap:wrap">
-      ${camperSVG(bus.iconColor, 64)}
-      <div style="flex:1"><div style="font-family:Nunito;font-weight:900;font-size:1.5rem">${esc(bus.name)}</div>
-        <div style="color:var(--text-muted);font-size:.85rem">${esc(bus.licensePlate)}</div>
-        <span class="fuel-badge">${esc(bus.fuelType)}</span></div>
+      ${camperSVG(_detailBus.iconColor, 64)}
+      <div style="flex:1"><div style="font-family:Nunito;font-weight:900;font-size:1.5rem">${esc(_detailBus.name)}</div>
+        <div style="color:var(--text-muted);font-size:.85rem">${esc(_detailBus.licensePlate)}</div>
+        <span class="fuel-badge">${esc(_detailBus.fuelType)}</span></div>
       <button class="btn btn-primary btn-sm" onclick="navigate('tank',{plate:'${esc(plate)}'})">⛽ Tanken</button>
     </div>
-    <div class="stats-row">
-      <div class="stat-box"><div class="stat-box-label">Gem. km/l</div><div class="stat-box-val ${stats.avgKmL==null?'nd':''}">${nd(stats.avgKmL)}</div></div>
-      <div class="stat-box"><div class="stat-box-label">Gem. l/100km</div><div class="stat-box-val ${stats.avgL100==null?'nd':''}">${nd(stats.avgL100)}</div></div>
-      <div class="stat-box"><div class="stat-box-label">Gem. €/km</div><div class="stat-box-val ${stats.avgCostKm==null?'nd':''}">${stats.avgCostKm!=null?'€ '+stats.avgCostKm:'–'}</div></div>
-      <div class="stat-box"><div class="stat-box-label">Tankbeurten</div><div class="stat-box-val">${entries.length}</div></div>
+
+    <div class="filter-card">
+      <div class="section-hdr">🗓️ Filter op periode</div>
+      <div class="filter-row">
+        <div class="filter-group">
+          <label class="filter-label">Van datum</label>
+          <input type="date" class="filter-input" id="filter-from" onchange="applyDetailFilter('${esc(plate)}')">
+        </div>
+        <div class="filter-group">
+          <label class="filter-label">Tot datum</label>
+          <input type="date" class="filter-input" id="filter-to" onchange="applyDetailFilter('${esc(plate)}')">
+        </div>
+        <button class="btn btn-secondary btn-sm" onclick="clearDetailFilter('${esc(plate)}')">✕ Wis filter</button>
+      </div>
+      <div id="filter-summary" class="filter-stats" style="display:none"></div>
     </div>
+
+    <div id="detail-stats-row" class="stats-row"></div>
     <div class="card"><div class="section-hdr">📈 Verbruik km/l</div><div class="chart-wrap"><canvas id="detailChartKml"></canvas></div></div>
     <div class="card"><div class="section-hdr">💶 Kosten/km</div><div class="chart-wrap"><canvas id="detailChartCost"></canvas></div></div>
     <div class="card">
       <div class="section-hdr">📋 Alle tankbeurten</div>
-      ${entries.length===0?'<p style="color:var(--text-muted);font-size:.9rem">Nog geen tankbeurten.</p>'
-        :`<div class="table-wrap">${buildEntriesTable(entries, plate)}</div>`}
+      <div id="detail-table-wrap"></div>
     </div>`;
 
-  setTimeout(() => {
-    const valid = entries.filter(e=>!e.excluded_from_stats&&e.calculatedKmPerLiter!==null);
-    if (detailChartKml) detailChartKml.destroy();
-    if (detailChartCost) detailChartCost.destroy();
-    const base = { responsive:true,maintainAspectRatio:false,scales:{x:{type:'category',grid:{color:'#F0E8D4'}},y:{grid:{color:'#F0E8D4'}}},plugins:{legend:{display:false}} };
-    detailChartKml  = new Chart(document.getElementById('detailChartKml'),  { type:'line', data:{datasets:[{data:valid.map(e=>({x:e.datetime.slice(0,10),y:e.calculatedKmPerLiter})),    borderColor:'#5E8C61',backgroundColor:'#5E8C6122',tension:.3,fill:true,pointRadius:4}]}, options:{...base,scales:{...base.scales,y:{...base.scales.y,title:{display:true,text:'km/l'}}}} });
-    detailChartCost = new Chart(document.getElementById('detailChartCost'), { type:'line', data:{datasets:[{data:valid.map(e=>({x:e.datetime.slice(0,10),y:e.calculatedCostPerKm})), borderColor:'#E8864A',backgroundColor:'#E8864A22',tension:.3,fill:true,pointRadius:4}]}, options:{...base,scales:{...base.scales,y:{...base.scales.y,title:{display:true,text:'€/km'}}}} });
-  }, 50);
+  // Render with no filter initially
+  renderDetailContent(plate, _detailAllEntries, null, null);
+}
+
+function applyDetailFilter(plate) {
+  const from = document.getElementById('filter-from').value;
+  const to   = document.getElementById('filter-to').value;
+  renderDetailContent(plate, _detailAllEntries, from || null, to || null);
+}
+
+function clearDetailFilter(plate) {
+  document.getElementById('filter-from').value = '';
+  document.getElementById('filter-to').value   = '';
+  renderDetailContent(plate, _detailAllEntries, null, null);
+}
+
+function renderDetailContent(plate, allEntries, fromDate, toDate) {
+  // Filter entries by date range if set
+  const filtered = allEntries.filter(e => {
+    const d = e.datetime.slice(0, 10);
+    if (fromDate && d < fromDate) return false;
+    if (toDate   && d > toDate)   return false;
+    return true;
+  });
+
+  const isFiltered = fromDate || toDate;
+  const stats = getStats(filtered);
+  const nd = v => v != null ? v : '–';
+
+  // Total cost and total liters in filtered range (all entries, including excluded)
+  const totalCost   = filtered.reduce((s,e) => s + e.totalCost, 0);
+  const totalLiters = filtered.reduce((s,e) => s + e.liters, 0);
+  const totalKm     = filtered.length >= 2
+    ? filtered[filtered.length-1].odometer - filtered[0].odometer
+    : null;
+
+  // ── Stats row ──
+  const statsEl = document.getElementById('detail-stats-row');
+  if (statsEl) statsEl.innerHTML = `
+    <div class="stat-box"><div class="stat-box-label">Gem. km/l</div><div class="stat-box-val ${stats.avgKmL==null?'nd':''}">${nd(stats.avgKmL)}</div></div>
+    <div class="stat-box"><div class="stat-box-label">Gem. l/100km</div><div class="stat-box-val ${stats.avgL100==null?'nd':''}">${nd(stats.avgL100)}</div></div>
+    <div class="stat-box"><div class="stat-box-label">Gem. €/km</div><div class="stat-box-val ${stats.avgCostKm==null?'nd':''}">${stats.avgCostKm!=null?'€ '+stats.avgCostKm:'–'}</div></div>
+    <div class="stat-box"><div class="stat-box-label">Tankbeurten</div><div class="stat-box-val">${filtered.length}</div></div>`;
+
+  // ── Filter summary (totals) ──
+  const summaryEl = document.getElementById('filter-summary');
+  if (summaryEl) {
+    if (filtered.length > 0) {
+      summaryEl.style.display = 'grid';
+      summaryEl.innerHTML = `
+        <div class="stat-box"><div class="stat-box-label">Totale kosten</div><div class="stat-box-val" style="font-size:1.1rem">€ ${totalCost.toLocaleString('nl-NL', {minimumFractionDigits:2, maximumFractionDigits:2})}</div></div>
+        <div class="stat-box"><div class="stat-box-label">Totaal liters</div><div class="stat-box-val" style="font-size:1.1rem">${totalLiters.toLocaleString('nl-NL', {minimumFractionDigits:1, maximumFractionDigits:1})} L</div></div>
+        ${totalKm!=null?`<div class="stat-box"><div class="stat-box-label">Km gereden</div><div class="stat-box-val" style="font-size:1.1rem">${totalKm.toLocaleString('nl-NL')} km</div></div>`:''}
+        ${isFiltered?`<div class="stat-box" style="background:var(--moss-light)"><div class="stat-box-label">Periode</div><div class="stat-box-val nd" style="font-size:.8rem">${fromDate||'…'} → ${toDate||'…'}</div></div>`:''}`;
+    } else {
+      summaryEl.style.display = 'none';
+    }
+  }
+
+  // ── Table ──
+  const tableEl = document.getElementById('detail-table-wrap');
+  if (tableEl) {
+    tableEl.innerHTML = filtered.length === 0
+      ? '<p style="color:var(--text-muted);font-size:.9rem">Geen tankbeurten in deze periode.</p>'
+      : `<div class="table-wrap">${buildEntriesTable(filtered, plate)}</div>`;
+  }
+
+  // ── Charts ──
+  const valid = filtered.filter(e=>!e.excluded_from_stats&&e.calculatedKmPerLiter!==null);
+  if (detailChartKml) detailChartKml.destroy();
+  if (detailChartCost) detailChartCost.destroy();
+  const base = { responsive:true, maintainAspectRatio:false,
+    scales:{x:{type:'category',grid:{color:'#F0E8D4'}},y:{grid:{color:'#F0E8D4'}}},
+    plugins:{legend:{display:false}} };
+  const kmlCanvas  = document.getElementById('detailChartKml');
+  const costCanvas = document.getElementById('detailChartCost');
+  if (kmlCanvas)  detailChartKml  = new Chart(kmlCanvas,  { type:'line', data:{datasets:[{data:valid.map(e=>({x:e.datetime.slice(0,10),y:e.calculatedKmPerLiter})),    borderColor:'#5E8C61',backgroundColor:'#5E8C6122',tension:.3,fill:true,pointRadius:4}]}, options:{...base,scales:{...base.scales,y:{...base.scales.y,title:{display:true,text:'km/l'}}}} });
+  if (costCanvas) detailChartCost = new Chart(costCanvas, { type:'line', data:{datasets:[{data:valid.map(e=>({x:e.datetime.slice(0,10),y:e.calculatedCostPerKm})), borderColor:'#E8864A',backgroundColor:'#E8864A22',tension:.3,fill:true,pointRadius:4}]}, options:{...base,scales:{...base.scales,y:{...base.scales.y,title:{display:true,text:'€/km'}}}} });
 }
 
 function buildEntriesTable(entries, plate) {
@@ -1010,6 +1104,10 @@ async function renderTankForm(plate) {
     const b = buses.find(b=>b.licensePlate===sel.value);
     if (b) showBusPreview(b); else document.getElementById('selected-bus-preview').style.display='none';
   };
+  // Enforce European numeric input on tank form fields
+  enforceNumericInput(document.getElementById('tank-odometer'), false);
+  enforceNumericInput(document.getElementById('tank-liters'), true);
+  enforceNumericInput(document.getElementById('tank-cost'), true);
 }
 
 function showBusPreview(bus) {
@@ -1025,9 +1123,9 @@ async function saveFuelEntry() {
   document.getElementById('tank-general-error').style.display = 'none';
 
   const plate     = document.getElementById('tank-bus-select').value;
-  const odometer  = parseFloat(document.getElementById('tank-odometer').value);
-  const liters    = parseFloat(document.getElementById('tank-liters').value);
-  const totalCost = parseFloat(document.getElementById('tank-cost').value);
+  const odometer  = parseEuropean(document.getElementById('tank-odometer').value);
+  const liters    = parseEuropean(document.getElementById('tank-liters').value);
+  const totalCost = parseEuropean(document.getElementById('tank-cost').value);
   const note      = document.getElementById('tank-note').value.trim().slice(0,500);
 
   let valid = true;
@@ -1099,13 +1197,17 @@ async function openEditModal(id, plate) {
   if (!entry) return;
   document.getElementById('edit-entry-id').value    = id;
   document.getElementById('edit-entry-plate').value = plate;
-  document.getElementById('edit-odometer').value    = entry.odometer;
-  document.getElementById('edit-liters').value      = entry.liters;
-  document.getElementById('edit-cost').value        = entry.totalCost;
+  document.getElementById('edit-odometer').value    = formatEuropean(entry.odometer, 0);
+  document.getElementById('edit-liters').value      = formatEuropean(entry.liters, 3);
+  document.getElementById('edit-cost').value        = formatEuropean(entry.totalCost, 2);
   document.getElementById('edit-note').value        = entry.note||'';
   document.getElementById('edit-general-error').style.display = 'none';
   clearErrors(['err-edit-odometer','err-edit-liters']);
   document.getElementById('edit-modal').classList.add('open');
+  // Enforce European numeric input on edit form fields
+  enforceNumericInput(document.getElementById('edit-odometer'), false);
+  enforceNumericInput(document.getElementById('edit-liters'), true);
+  enforceNumericInput(document.getElementById('edit-cost'), true);
 }
 function closeEditModal() { document.getElementById('edit-modal').classList.remove('open'); }
 
@@ -1113,9 +1215,9 @@ async function saveEditEntry() {
   clearErrors(['err-edit-odometer','err-edit-liters']);
   const id        = document.getElementById('edit-entry-id').value;
   const plate     = document.getElementById('edit-entry-plate').value;
-  const odometer  = parseFloat(document.getElementById('edit-odometer').value);
-  const liters    = parseFloat(document.getElementById('edit-liters').value);
-  const totalCost = parseFloat(document.getElementById('edit-cost').value);
+  const odometer  = parseEuropean(document.getElementById('edit-odometer').value);
+  const liters    = parseEuropean(document.getElementById('edit-liters').value);
+  const totalCost = parseEuropean(document.getElementById('edit-cost').value);
   const note      = document.getElementById('edit-note').value.trim().slice(0,500);
 
   let valid = true;
@@ -1307,6 +1409,60 @@ async function exportAllCSV() {
   showSpinner(); const buses=await getBuses(); const allRows=[];
   for(const bus of buses){const entries=await getBusEntries(bus.licensePlate);entries.forEach(e=>allRows.push([bus.licensePlate,bus.name,bus.fuelType,e.datetime,e.odometer,e.liters,e.totalCost,(e.note||'').replace(/"/g,'""'),e.excluded_from_stats?'Ja':'Nee',e.calculatedDistance??'',e.calculatedKmPerLiter??'',e.calculatedLitersPer100Km??'',e.calculatedCostPerKm??'']));}
   hideSpinner(); downloadCSV(rowsToCSV(allRows),'tanklog-alle-bussen.csv');
+}
+
+
+/* ════════════════════════════════════════════════════
+   EUROPEAN NUMBER INPUT
+   Accepts: 1.234,56 or 1234,56 or 1234 or 1.234
+   Thousands separator: dot (.)
+   Decimal separator:   comma (,)
+   ════════════════════════════════════════════════════ */
+
+function parseEuropean(str) {
+  if (!str && str !== 0) return NaN;
+  // Remove thousand separators (dots that are NOT the decimal separator)
+  // Rule: if there's a comma, dots before it are thousand separators
+  // If there's no comma, a single dot at the end with <=2 digits is decimal; otherwise thousand sep
+  let s = String(str).trim();
+  const hasComma = s.includes(',');
+  if (hasComma) {
+    // Remove all dots (thousand separators), replace comma with dot
+    s = s.replace(/\./g, '').replace(',', '.');
+  } else {
+    // No comma: remove dots used as thousand separators
+    // A dot is a thousand separator if it's followed by exactly 3 digits (and possibly more groups)
+    // e.g. 1.234 → 1234, but 1.5 → 1.5 (ambiguous, treat as decimal for liters/cost)
+    const parts = s.split('.');
+    if (parts.length > 1 && parts[parts.length - 1].length === 3) {
+      // All dots are thousand separators
+      s = parts.join('');
+    }
+    // else: treat single dot as decimal separator (already valid for parseFloat)
+  }
+  return parseFloat(s);
+}
+
+function enforceNumericInput(el, allowDecimal) {
+  el.addEventListener('input', function() {
+    let val = this.value;
+    if (allowDecimal) {
+      // Allow digits, one comma (decimal), dots (thousands)
+      val = val.replace(/[^0-9.,]/g, '');
+      // Allow only one comma
+      const parts = val.split(',');
+      if (parts.length > 2) val = parts[0] + ',' + parts.slice(1).join('');
+    } else {
+      // Integers only: digits and dots for thousands
+      val = val.replace(/[^0-9.]/g, '');
+    }
+    if (this.value !== val) this.value = val;
+  });
+}
+
+function formatEuropean(num, decimals = 2) {
+  if (num == null || isNaN(num)) return '';
+  return Number(num).toLocaleString('nl-NL', { minimumFractionDigits: 0, maximumFractionDigits: decimals });
 }
 
 /* HELPERS */
