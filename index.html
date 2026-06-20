@@ -1347,12 +1347,14 @@ async function saveVoertuig() {
 
   showSpinner();
   try {
+    // On edit: use the original stored plate (_editingPlate) as the key.
+    // On new: mask the entered plate before storing.
+    const plateToStore = _editingPlate ? _editingPlate : maskPlate(plate);
     if (!_editingPlate) {
-      const masked = maskPlate(plate);
-      const { data } = await supabase.from('buses').select('license_plate').eq('license_plate', masked).maybeSingle();
+      const { data } = await supabase.from('buses').select('license_plate').eq('license_plate', plateToStore).maybeSingle();
       if (data) { setError('err-voertuig-plate','Dit kenteken bestaat al.'); hideSpinner(); return; }
     }
-    await upsertVoertuig({ licensePlate: maskPlate(plate), name, fuelType:fuel, iconColor:color });
+    await upsertVoertuig({ licensePlate: plateToStore, name, fuelType:fuel, iconColor:color });
     closeVoertuigModal();
     renderVoertuigBeheer();
   } catch(e) { setError('err-voertuig-plate','Opslaan mislukt: '+e.message); }
@@ -1560,8 +1562,11 @@ function maskPlate(plate) {
   //   JR-724-H  → JR-72*-*
   //   J-97-HYI  → J-97-H**
   //   V-123-AB  → V-123-**
+  // If already masked (last 2 alphanumeric chars are *), return as-is.
   if (!plate) return '';
-  const chars = plate.toUpperCase().trim().split('');
+  const p = plate.toUpperCase().trim();
+  if (isAlreadyMasked(p)) return p;
+  const chars = p.split('');
   let replaced = 0;
   for (let i = chars.length - 1; i >= 0 && replaced < 2; i--) {
     if (/[A-Z0-9]/.test(chars[i])) {
@@ -1570,6 +1575,18 @@ function maskPlate(plate) {
     }
   }
   return chars.join('');
+}
+
+function isAlreadyMasked(plate) {
+  // Returns true if the last 2 alphanumeric characters are already '*'
+  if (!plate) return false;
+  const chars = plate.toUpperCase().trim().split('');
+  let stars = 0;
+  for (let i = chars.length - 1; i >= 0 && stars < 2; i--) {
+    if (chars[i] === '*') stars++;
+    else if (/[A-Z0-9]/.test(chars[i])) break; // found a real char before 2 stars
+  }
+  return stars === 2;
 }
 
 /* HELPERS */
