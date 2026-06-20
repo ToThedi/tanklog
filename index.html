@@ -6,8 +6,8 @@
 <meta name="theme-color" content="#5E8C61">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
-<meta name="apple-mobile-web-app-title" content="TankLog">
-<title>🚐 TankLog – Kampeerbusje Tankregistratie</title>
+<meta name="apple-mobile-web-app-title" content="Tankie">
+<title>🚗 Tankie – Voertuig Tankregistratie</title>
 <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&family=Nunito+Sans:wght@400;600&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
@@ -100,13 +100,13 @@
     margin-bottom: 16px;
   }
 
-  /* ──── BUS CARD ──── */
-  .bus-grid {
+  /* ──── VOERTUIG CARD ──── */
+  .voertuig-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(270px, 1fr));
     gap: 16px;
   }
-  .bus-card {
+  .voertuig-card {
     background: var(--white);
     border-radius: var(--radius);
     box-shadow: var(--shadow);
@@ -115,40 +115,40 @@
     border-top: 4px solid var(--moss);
     transition: box-shadow .2s;
   }
-  .bus-card:hover { box-shadow: var(--shadow-lg); }
-  .bus-card-header {
+  .voertuig-card:hover { box-shadow: var(--shadow-lg); }
+  .voertuig-card-header {
     display: flex; align-items: center; gap: 12px;
   }
-  .bus-icon {
+  .voertuig-icon {
     width: 52px; height: 52px; flex-shrink: 0;
   }
-  .bus-card-name {
+  .voertuig-card-name {
     font-family: 'Nunito', sans-serif;
     font-weight: 900; font-size: 1.15rem;
     color: var(--text);
   }
-  .bus-card-plate {
+  .voertuig-card-plate {
     font-size: 0.78rem; color: var(--text-muted);
     font-weight: 600; letter-spacing: .03em;
   }
-  .bus-stats {
+  .voertuig-stats {
     display: grid; grid-template-columns: 1fr 1fr;
     gap: 6px;
   }
-  .bus-stat {
+  .voertuig-stat {
     background: var(--cream); border-radius: 8px;
     padding: 6px 10px;
   }
-  .bus-stat-label {
+  .voertuig-stat-label {
     font-size: 0.7rem; color: var(--text-muted);
     font-weight: 600; text-transform: uppercase; letter-spacing: .04em;
   }
-  .bus-stat-value {
+  .voertuig-stat-value {
     font-family: 'Nunito', sans-serif;
     font-weight: 800; font-size: 1rem; color: var(--moss-dark);
   }
-  .bus-stat-value.muted { color: var(--text-muted); font-size: .85rem; }
-  .bus-card-actions {
+  .voertuig-stat-value.muted { color: var(--text-muted); font-size: .85rem; }
+  .voertuig-card-actions {
     display: flex; gap: 8px; margin-top: 4px;
   }
 
@@ -365,7 +365,7 @@
     .nav-btn { font-size: .75rem; padding: 5px 8px; }
     .page-title { font-size: 1.3rem; }
     .stats-row { grid-template-columns: 1fr 1fr; }
-    .bus-card-actions { flex-direction: column; }
+    .voertuig-card-actions { flex-direction: column; }
   }
 
   .spinner-overlay { display: none; position: fixed; inset: 0; background: rgba(245,237,216,.75); z-index: 300; align-items: center; justify-content: center; flex-direction: column; gap: 12px; }
@@ -397,11 +397,11 @@
 
 <nav class="topbar">
   <div class="topbar-inner">
-    <a class="topbar-logo" href="#" onclick="navigate('dashboard')">🚐 TankLog</a>
+    <a class="topbar-logo" href="#" onclick="navigate('dashboard')">🚗 Tankie</a>
     <div class="nav-links">
       <button class="nav-btn" onclick="navigate('dashboard')" id="nav-dashboard">🏕️ Dashboard</button>
       <button class="nav-btn" onclick="navigate('tank')" id="nav-tank">⛽ Tanken</button>
-      <button class="nav-btn" onclick="navigate('buses')" id="nav-buses">🔧 Bussen</button>
+      <button class="nav-btn" onclick="navigate('voertuigen')" id="nav-voertuigen">🔧 Voertuigen</button>
       <button class="nav-btn" onclick="navigate('nfc')" id="nav-nfc">📡 NFC</button>
       <button class="nav-btn" onclick="navigate('qr')" id="nav-qr">📱 QR</button>
       <button class="nav-btn" onclick="navigate('export')" id="nav-export">📊 Export</button>
@@ -416,18 +416,18 @@
 
     <div id="dashboard-empty" class="card empty-state" style="display:none">
       <div class="empty-state-icon">🚐</div>
-      <div class="empty-state-title">Nog geen bussen</div>
-      <p class="empty-state-text">Voeg je eerste bus toe om te beginnen.</p>
-      <button class="btn btn-primary" onclick="navigate('buses')">+ Bus toevoegen</button>
+      <div class="empty-state-title">Nog geen voertuigen</div>
+      <p class="empty-state-text">Voeg je eerste voertuig toe om te beginnen.</p>
+      <button class="btn btn-primary" onclick="navigate('voertuigen')">+ Voertuig toevoegen</button>
     </div>
 
     <!-- Global chart -->
     <div class="global-chart-card" id="global-chart-card" style="display:none">
-      <div class="section-hdr">📈 Verbruikshistorie alle bussen (km/l)</div>
+      <div class="section-hdr">📈 Verbruikshistorie alle voertuigen (km/l)</div>
       <div class="global-chart-wrap"><canvas id="globalChart"></canvas></div>
     </div>
 
-    <div class="bus-grid" id="bus-grid"></div>
+    <div class="voertuig-grid" id="voertuig-grid"></div>
   </div>
 </div>
 
@@ -437,23 +437,23 @@
     <a class="back-link" onclick="navigate('dashboard')">← Terug naar dashboard</a>
     <div class="page-title">⛽ Nieuwe tankbeurt</div>
 
-    <div id="tank-no-bus-alert" class="alert alert-info" style="display:none">
-      ℹ️ Geen bus gevonden via URL. Selecteer handmatig een bus.
+    <div id="tank-geen-voertuig-alert" class="alert alert-info" style="display:none">
+      ℹ️ Geen voertuig gevonden via URL. Selecteer handmatig.
     </div>
-    <div id="tank-unknown-bus-alert" class="alert alert-error" style="display:none">
-      ❌ De bus in de URL bestaat niet. Selecteer handmatig.
+    <div id="tank-onbekend-voertuig-alert" class="alert alert-error" style="display:none">
+      ❌ Dit voertuig bestaat niet. Selecteer handmatig.
     </div>
 
     <div class="card">
-      <!-- Bus selectie -->
+      <!-- Voertuig selectie -->
       <div class="form-group">
-        <label class="form-label">Bus *</label>
-        <select class="form-select" id="tank-bus-select">
-          <option value="">— Kies een bus —</option>
+        <label class="form-label">Voertuig *</label>
+        <select class="form-select" id="tank-voertuig-select">
+          <option value="">— Kies een voertuig —</option>
         </select>
-        <div class="error-msg" id="err-tank-bus"></div>
+        <div class="error-msg" id="err-tank-voertuig"></div>
       </div>
-      <div id="selected-bus-preview" style="display:none;margin-bottom:14px"></div>
+      <div id="selected-voertuig-preview" style="display:none;margin-bottom:14px"></div>
 
       <!-- Kilometerstand -->
       <div class="form-group">
@@ -495,20 +495,20 @@
   </div>
 </div>
 
-<!-- ═══════════════════════ BUS DETAIL ═══════════════════════ -->
-<div class="page" id="page-bus-detail">
+<!-- ═══════════════════════ VOERTUIG DETAIL ═══════════════════════ -->
+<div class="page" id="page-voertuig-detail">
   <div class="container">
     <a class="back-link" onclick="navigate('dashboard')">← Terug naar dashboard</a>
-    <div id="bus-detail-content"></div>
+    <div id="voertuig-detail-content"></div>
   </div>
 </div>
 
-<!-- ═══════════════════════ BUS BEHEER ═══════════════════════ -->
-<div class="page" id="page-buses">
+<!-- ══════════════════ VOERTUIG BEHEER ══════════════════ -->
+<div class="page" id="page-voertuigen">
   <div class="container">
-    <div class="page-title">🔧 Busbeheer</div>
-    <button class="btn btn-primary" style="margin-bottom:20px" onclick="openBusForm()">+ Nieuwe bus</button>
-    <div id="buses-list"></div>
+    <div class="page-title">🔧 Voertuigbeheer</div>
+    <button class="btn btn-primary" style="margin-bottom:20px" onclick="openVoertuigForm()">+ Nieuw voertuig</button>
+    <div id="voertuigen-list"></div>
   </div>
 </div>
 
@@ -524,7 +524,7 @@
       <ol style="padding-left:20px;line-height:2;color:var(--text-muted);font-size:.9rem">
         <li>Open een NFC-writer app (bv. <strong>NFC Tools</strong>) op je iPhone.</li>
         <li>Kies voor het schrijven van een URL.</li>
-        <li>Kopieer de URL van de juiste bus hieronder.</li>
+        <li>Kopieer de URL van het juiste voertuig hieronder.</li>
         <li>Schrijf de URL naar de NFC-tag.</li>
         <li>Test de tag door deze te scannen.</li>
       </ol>
@@ -555,40 +555,40 @@
   </div>
 </div>
 
-<!-- ═══════════════════════ MODAL: BUS FORM ═══════════════════════ -->
-<div class="modal-overlay" id="bus-modal">
+<!-- ══════════════════ MODAL: VOERTUIG FORM ══════════════════ -->
+<div class="modal-overlay" id="voertuig-modal">
   <div class="modal">
-    <div class="modal-title" id="bus-modal-title">Bus toevoegen</div>
+    <div class="modal-title" id="voertuig-modal-title">Voertuig toevoegen</div>
     <div class="form-group">
       <label class="form-label">Kenteken * <span style="font-size:.7rem;color:var(--text-muted)">(unieke sleutel)</span></label>
-      <input type="text" class="form-input" id="bus-plate" placeholder="bv. V-123-AB">
-      <div class="error-msg" id="err-bus-plate"></div>
+      <input type="text" class="form-input" id="voertuig-plate" placeholder="bv. V-123-AB">
+      <div class="error-msg" id="err-voertuig-plate"></div>
     </div>
     <div class="form-group">
       <label class="form-label">Naam *</label>
-      <input type="text" class="form-input" id="bus-name" placeholder="bv. SummerVan">
-      <div class="error-msg" id="err-bus-name"></div>
+      <input type="text" class="form-input" id="voertuig-name" placeholder="bv. SummerVan">
+      <div class="error-msg" id="err-voertuig-name"></div>
     </div>
     <div class="form-group">
       <label class="form-label">Brandstofsoort *</label>
-      <select class="form-select" id="bus-fuel">
+      <select class="form-select" id="voertuig-fuel">
         <option value="">— Kies —</option>
         <option>Diesel</option>
         <option>Benzine 95</option>
         <option>Benzine 98</option>
         <option>LPG</option>
       </select>
-      <div class="error-msg" id="err-bus-fuel"></div>
+      <div class="error-msg" id="err-voertuig-fuel"></div>
     </div>
     <div class="form-group">
       <label class="form-label">Kleur camper-icoon *</label>
       <div class="swatch-grid" id="color-swatches"></div>
-      <input type="hidden" id="bus-color" value="">
-      <div class="error-msg" id="err-bus-color"></div>
+      <input type="hidden" id="voertuig-color" value="">
+      <div class="error-msg" id="err-voertuig-color"></div>
     </div>
     <div style="display:flex;gap:10px;margin-top:6px">
-      <button class="btn btn-primary btn-full" onclick="saveBus()">Opslaan</button>
-      <button class="btn btn-secondary" onclick="closeBusModal()">Annuleren</button>
+      <button class="btn btn-primary btn-full" onclick="saveVoertuig()">Opslaan</button>
+      <button class="btn btn-secondary" onclick="closeVoertuigModal()">Annuleren</button>
     </div>
   </div>
 </div>
@@ -658,8 +658,8 @@ let supabase = null;
 function initSupabase() {
   supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
   const qs = new URLSearchParams(window.location.search);
-  const busParam = qs.get('bus');
-  if (busParam) navigate('tank', { plate: busParam });
+  const voertuigParam = qs.get('voertuig');
+  if (voertuigParam) navigate('tank', { plate: voertuigParam });
   else navigate('dashboard');
 }
 
@@ -675,23 +675,23 @@ function hideSpinner() { document.getElementById('spinner').classList.remove('ac
    DB uses snake_case; JS uses camelCase (mapped below).
    ════════════════════════════════════════════════════ */
 
-async function getBuses() {
+async function getVoertuigen() {
   const { data, error } = await supabase.from('buses').select('*').order('created_at', { ascending: true });
   if (error) { console.error(error); return []; }
   return data.map(mapBus);
 }
 
-async function getBusEntries(plate) {
+async function getVoertuigEntries(plate) {
   const { data, error } = await supabase.from('fuel_entries').select('*')
     .eq('bus_license_plate', plate).order('odometer', { ascending: true });
   if (error) { console.error(error); return []; }
   return data.map(mapEntry);
 }
 
-async function upsertBus(bus) {
+async function upsertVoertuig(voertuig) {
   const { error } = await supabase.from('buses').upsert({
-    license_plate: bus.licensePlate, name: bus.name,
-    fuel_type: bus.fuelType, icon_color: bus.iconColor,
+    license_plate: voertuig.licensePlate, name: voertuig.name,
+    fuel_type: voertuig.fuelType, icon_color: voertuig.iconColor,
   }, { onConflict: 'license_plate' });
   if (error) throw error;
 }
@@ -713,7 +713,7 @@ async function updateEntryBatch(entries) {
   }
 }
 
-function mapBus(row) {
+function mapVoertuig(row) {
   return { licensePlate: row.license_plate, name: row.name, fuelType: row.fuel_type, iconColor: row.icon_color, createdAt: row.created_at };
 }
 function mapEntry(row) {
@@ -770,7 +770,7 @@ function calcEntries(entries) {
 }
 
 async function recalcAndSave(plate) {
-  const raw = await getBusEntries(plate); // sorted by odometer
+  const raw = await getVoertuigEntries(plate); // sorted by odometer
   const recalced = calcEntries(raw);
   await updateEntryBatch(recalced);
   return recalced;
@@ -811,8 +811,8 @@ function navigate(page, params = {}) {
 
   if (page === 'dashboard')  renderDashboard();
   if (page === 'tank')       renderTankForm(params.plate || null);
-  if (page === 'bus-detail') renderBusDetail(params.plate);
-  if (page === 'buses')      renderBusManagement();
+  if (page === 'voertuig-detail') renderVoertuigDetail(params.plate);
+  if (page === 'buses')      renderVoertuigBeheer();
   if (page === 'nfc')        renderNFC();
   if (page === 'qr')         renderQR();
   if (page === 'export')     renderExport();
@@ -850,43 +850,43 @@ let globalChartInstance = null;
 
 async function renderDashboard() {
   showSpinner();
-  const buses = await getBuses();
-  const allEntriesArr = await Promise.all(buses.map(b => getBusEntries(b.licensePlate)));
+  const buses = await getVoertuigen();
+  const allEntriesArr = await Promise.all(buses.map(b => getVoertuigEntries(b.licensePlate)));
   hideSpinner();
 
   const entriesMap = {};
   buses.forEach((b,i) => entriesMap[b.licensePlate] = allEntriesArr[i]);
 
-  const grid = document.getElementById('bus-grid');
+  const grid = document.getElementById('voertuig-grid');
   const empty = document.getElementById('dashboard-empty');
   const chartCard = document.getElementById('global-chart-card');
 
   if (!buses.length) { empty.style.display='block'; grid.innerHTML=''; chartCard.style.display='none'; return; }
   empty.style.display = 'none'; chartCard.style.display = 'block';
 
-  grid.innerHTML = buses.map(bus => {
-    const entries = entriesMap[bus.licensePlate];
+  grid.innerHTML = voertuigen.map(voertuig => {
+    const entries = entriesMap[voertuig.licensePlate];
     const stats   = getStats(entries);
     const last    = entries.at(-1);
     return `
-    <div class="bus-card" style="border-top-color:${bus.iconColor}">
-      <div class="bus-card-header">
-        ${camperSVG(bus.iconColor, 52)}
+    <div class="voertuig-card" style="border-top-color:${voertuig.iconColor}">
+      <div class="voertuig-card-header">
+        ${camperSVG(voertuig.iconColor, 52)}
         <div>
-          <div class="bus-card-name">${esc(bus.name)}</div>
-          <div class="bus-card-plate">${esc(bus.licensePlate)}</div>
-          <span class="fuel-badge">${esc(bus.fuelType)}</span>
+          <div class="voertuig-card-name">${esc(voertuig.name)}</div>
+          <div class="voertuig-card-plate">${esc(voertuig.licensePlate)}</div>
+          <span class="fuel-badge">${esc(voertuig.fuelType)}</span>
         </div>
       </div>
-      <div class="bus-stats">
-        <div class="bus-stat"><div class="bus-stat-label">Gem. km/l</div><div class="bus-stat-value ${stats.avgKmL==null?'muted':''}">${stats.avgKmL!=null?fmtKml(stats.avgKmL):'–'}</div></div>
-        <div class="bus-stat"><div class="bus-stat-label">Gem. l/100km</div><div class="bus-stat-value ${stats.avgL100==null?'muted':''}">${stats.avgL100!=null?fmtL100(stats.avgL100):'–'}</div></div>
-        <div class="bus-stat"><div class="bus-stat-label">€/km</div><div class="bus-stat-value ${stats.avgCostKm==null?'muted':''}">${stats.avgCostKm!=null?fmtCostKm(stats.avgCostKm):'–'}</div></div>
-        <div class="bus-stat"><div class="bus-stat-label">Laatste tankbeurt</div><div class="bus-stat-value muted" style="font-size:.8rem">${last?daysAgoLabel(last.datetime):'—'}</div></div>
+      <div class="voertuig-stats">
+        <div class="voertuig-stat"><div class="voertuig-stat-label">Gem. km/l</div><div class="voertuig-stat-value ${stats.avgKmL==null?'muted':''}">${stats.avgKmL!=null?fmtKml(stats.avgKmL):'–'}</div></div>
+        <div class="voertuig-stat"><div class="voertuig-stat-label">Gem. l/100km</div><div class="voertuig-stat-value ${stats.avgL100==null?'muted':''}">${stats.avgL100!=null?fmtL100(stats.avgL100):'–'}</div></div>
+        <div class="voertuig-stat"><div class="voertuig-stat-label">€/km</div><div class="voertuig-stat-value ${stats.avgCostKm==null?'muted':''}">${stats.avgCostKm!=null?fmtCostKm(stats.avgCostKm):'–'}</div></div>
+        <div class="voertuig-stat"><div class="voertuig-stat-label">Laatste tankbeurt</div><div class="voertuig-stat-value muted" style="font-size:.8rem">${last?daysAgoLabel(last.datetime):'—'}</div></div>
       </div>
-      <div class="bus-card-actions">
-        <button class="btn btn-primary btn-sm btn-full" onclick="navigate('tank',{plate:'${esc(bus.licensePlate)}'})">⛽ Tanken</button>
-        <button class="btn btn-outline btn-sm btn-full" onclick="navigate('bus-detail',{plate:'${esc(bus.licensePlate)}'})">📋 Details</button>
+      <div class="voertuig-card-actions">
+        <button class="btn btn-primary btn-sm btn-full" onclick="navigate('tank',{plate:'${esc(voertuig.licensePlate)}'})">⛽ Tanken</button>
+        <button class="btn btn-outline btn-sm btn-full" onclick="navigate('voertuig-detail',{plate:'${esc(voertuig.licensePlate)}'})">📋 Details</button>
       </div>
     </div>`;
   }).join('');
@@ -899,9 +899,9 @@ function renderGlobalChart(buses, entriesMap) {
   const ctx = document.getElementById('globalChart');
   if (!ctx) return;
   const PALETTE = ['#5E8C61','#E8864A','#87B9D4','#9B59B6','#E91E8C','#F1C40F','#E74C3C','#1ABC9C'];
-  const datasets = buses.map((bus,i) => {
-    const valid = (entriesMap[bus.licensePlate]||[]).filter(e=>!e.excluded_from_stats&&e.calculatedKmPerLiter!==null);
-    return { label:bus.name, data:valid.map(e=>({x:e.datetime.slice(0,10),y:e.calculatedKmPerLiter})),
+  const datasets = voertuigen.map((voertuig,i) => {
+    const valid = (entriesMap[voertuig.licensePlate]||[]).filter(e=>!e.excluded_from_stats&&e.calculatedKmPerLiter!==null);
+    return { label:voertuig.name, data:valid.map(e=>({x:e.datetime.slice(0,10),y:e.calculatedKmPerLiter})),
       borderColor:PALETTE[i%PALETTE.length], backgroundColor:PALETTE[i%PALETTE.length]+'22', tension:.3, fill:false, pointRadius:4 };
   }).filter(d=>d.data.length>0);
   globalChartInstance = new Chart(ctx, { type:'line', data:{datasets},
@@ -911,31 +911,31 @@ function renderGlobalChart(buses, entriesMap) {
 }
 
 /* ════════════════════════════════════════════════════
-   BUS DETAIL
+   VOERTUIG DETAIL
    ════════════════════════════════════════════════════ */
 let detailChartKml = null, detailChartCost = null;
 
-// Store all entries for current bus so filter can work without re-fetching
+// Store all entries for current voertuig so filter can work without re-fetching
 let _detailAllEntries = [];
-let _detailBus = null;
+let _detailVoertuig = null;
 
-async function renderBusDetail(plate) {
+async function renderVoertuigDetail(plate) {
   showSpinner();
-  const buses = await getBuses();
-  _detailBus = buses.find(b=>b.licensePlate===plate);
-  _detailAllEntries = await getBusEntries(plate);
+  const buses = await getVoertuigen();
+  _detailVoertuig = buses.find(b=>b.licensePlate===plate);
+  _detailAllEntries = await getVoertuigEntries(plate);
   hideSpinner();
 
-  const container = document.getElementById('bus-detail-content');
-  if (!_detailBus) { container.innerHTML='<div class="alert alert-error">Bus niet gevonden.</div>'; return; }
+  const container = document.getElementById('voertuig-detail-content');
+  if (!_detailVoertuig) { container.innerHTML='<div class="alert alert-error">Voertuig niet gevonden.</div>'; return; }
 
   // Build the static shell (header + filter card + placeholder divs)
   container.innerHTML = `
     <div style="display:flex;align-items:center;gap:14px;margin-bottom:14px;flex-wrap:wrap">
-      ${camperSVG(_detailBus.iconColor, 64)}
-      <div style="flex:1"><div style="font-family:Nunito;font-weight:900;font-size:1.5rem">${esc(_detailBus.name)}</div>
-        <div style="color:var(--text-muted);font-size:.85rem">${esc(_detailBus.licensePlate)}</div>
-        <span class="fuel-badge">${esc(_detailBus.fuelType)}</span></div>
+      ${camperSVG(_detailVoertuig.iconColor, 64)}
+      <div style="flex:1"><div style="font-family:Nunito;font-weight:900;font-size:1.5rem">${esc(_detailVoertuig.name)}</div>
+        <div style="color:var(--text-muted);font-size:.85rem">${esc(_detailVoertuig.licensePlate)}</div>
+        <span class="fuel-badge">${esc(_detailVoertuig.fuelType)}</span></div>
       <button class="btn btn-primary btn-sm" onclick="navigate('tank',{plate:'${esc(plate)}'})">⛽ Tanken</button>
     </div>
 
@@ -1062,14 +1062,14 @@ function buildEntriesTable(entries, plate) {
 
 async function toggleExclude(id, plate) {
   showSpinner();
-  const entries = await getBusEntries(plate);
+  const entries = await getVoertuigEntries(plate);
   const entry = entries.find(e=>e.id===id);
   if (!entry) { hideSpinner(); return; }
   entry.excluded_from_stats = !entry.excluded_from_stats;
   await updateEntry(entry);
   await recalcAndSave(plate);
   hideSpinner();
-  renderBusDetail(plate);
+  renderVoertuigDetail(plate);
 }
 
 /* ════════════════════════════════════════════════════
@@ -1080,33 +1080,33 @@ let _pendingEntry = null;
 async function renderTankForm(plate) {
   _pendingEntry = null;
   showSpinner();
-  const buses = await getBuses();
+  const buses = await getVoertuigen();
   hideSpinner();
 
-  const sel = document.getElementById('tank-bus-select');
-  sel.innerHTML = '<option value="">— Kies een bus —</option>' +
+  const sel = document.getElementById('tank-voertuig-select');
+  sel.innerHTML = '<option value="">— Kies een voertuig —</option>' +
     buses.map(b=>`<option value="${esc(b.licensePlate)}">${esc(b.name)} (${esc(b.licensePlate)})</option>`).join('');
 
   ['tank-odometer','tank-liters','tank-cost','tank-note'].forEach(id=>document.getElementById(id).value='');
-  ['err-tank-bus','err-tank-odometer','err-tank-liters','err-tank-cost'].forEach(id=>document.getElementById(id).textContent='');
+  ['err-tank-voertuig','err-tank-odometer','err-tank-liters','err-tank-cost'].forEach(id=>document.getElementById(id).textContent='');
   document.getElementById('tank-general-error').style.display = 'none';
   document.getElementById('char-count').textContent = '0';
-  document.getElementById('selected-bus-preview').style.display = 'none';
-  document.getElementById('tank-no-bus-alert').style.display = 'none';
-  document.getElementById('tank-unknown-bus-alert').style.display = 'none';
+  document.getElementById('selected-voertuig-preview').style.display = 'none';
+  document.getElementById('tank-geen-voertuig-alert').style.display = 'none';
+  document.getElementById('tank-onbekend-voertuig-alert').style.display = 'none';
 
   if (plate) {
-    const bus = buses.find(b=>b.licensePlate===plate);
-    if (!bus) document.getElementById('tank-unknown-bus-alert').style.display = 'block';
-    else { sel.value = plate; showBusPreview(bus); }
+    const voertuig = voertuigen.find(b=>b.licensePlate===plate);
+    if (!voertuig) document.getElementById('tank-onbekend-voertuig-alert').style.display = 'block';
+    else { sel.value = plate; showVoertuigPreview(voertuig); }
   } else {
-    document.getElementById('tank-no-bus-alert').style.display = 'block';
+    document.getElementById('tank-geen-voertuig-alert').style.display = 'block';
   }
   sel.onchange = async () => {
     const b = buses.find(b=>b.licensePlate===sel.value);
-    if (b) { showBusPreview(b); await loadOdometerHint(b.licensePlate); }
+    if (b) { showVoertuigPreview(b); await loadOdometerHint(b.licensePlate); }
     else {
-      document.getElementById('selected-bus-preview').style.display='none';
+      document.getElementById('selected-voertuig-preview').style.display='none';
       document.getElementById('odometer-hint').style.display='none';
     }
   };
@@ -1120,13 +1120,13 @@ async function renderTankForm(plate) {
   });
   // If plate was pre-selected via URL, also load the hint
   if (plate) {
-    const bus = buses.find(b=>b.licensePlate===plate);
-    if (bus) await loadOdometerHint(plate);
+    const voertuig = voertuigen.find(b=>b.licensePlate===plate);
+    if (voertuig) await loadOdometerHint(plate);
   }
 }
 
 async function loadOdometerHint(plate) {
-  const entries = await getBusEntries(plate);
+  const entries = await getVoertuigEntries(plate);
   const last = entries.at(-1);
   const hintEl = document.getElementById('odometer-hint');
   if (!hintEl) return;
@@ -1135,7 +1135,7 @@ async function loadOdometerHint(plate) {
     hintEl.innerHTML = `📍 Vorige meting: <strong>${fmt(last.odometer)} km</strong> <span style="color:var(--text-muted)">(${daysAgoLabel(last.datetime)})</span>`;
   } else {
     hintEl.style.display = 'block';
-    hintEl.innerHTML = '📍 Eerste tankbeurt voor deze bus — nog geen vorige meting.';
+    hintEl.innerHTML = '📍 Eerste tankbeurt voor dit voertuig — nog geen vorige meting.';
   }
 }
 
@@ -1153,33 +1153,33 @@ function updatePricePerLiter() {
   }
 }
 
-function showBusPreview(bus) {
-  const el = document.getElementById('selected-bus-preview');
+function showVoertuigPreview(voertuig) {
+  const el = document.getElementById('selected-voertuig-preview');
   el.style.display = 'block';
   el.innerHTML = `<div style="display:flex;align-items:center;gap:10px;background:var(--cream);border-radius:10px;padding:10px 14px">
-    ${camperSVG(bus.iconColor,40)}<div><strong>${esc(bus.name)}</strong><div style="font-size:.8rem;color:var(--text-muted)">${esc(bus.licensePlate)} · ${esc(bus.fuelType)}</div></div></div>`;
+    ${camperSVG(voertuig.iconColor,40)}<div><strong>${esc(voertuig.name)}</strong><div style="font-size:.8rem;color:var(--text-muted)">${esc(voertuig.licensePlate)} · ${esc(voertuig.fuelType)}</div></div></div>`;
 }
 function updateCharCount() { document.getElementById('char-count').textContent=document.getElementById('tank-note').value.length; }
 
 async function saveFuelEntry() {
-  clearErrors(['err-tank-bus','err-tank-odometer','err-tank-liters','err-tank-cost']);
+  clearErrors(['err-tank-voertuig','err-tank-odometer','err-tank-liters','err-tank-cost']);
   document.getElementById('tank-general-error').style.display = 'none';
 
-  const plate     = document.getElementById('tank-bus-select').value;
+  const plate     = document.getElementById('tank-voertuig-select').value;
   const odometer  = parseEuropean(document.getElementById('tank-odometer').value);
   const liters    = parseEuropean(document.getElementById('tank-liters').value);
   const totalCost = parseEuropean(document.getElementById('tank-cost').value);
   const note      = document.getElementById('tank-note').value.trim().slice(0,500);
 
   let valid = true;
-  if (!plate)                            { setError('err-tank-bus','Selecteer een bus.'); valid=false; }
+  if (!plate)                            { setError('err-tank-voertuig','Selecteer een voertuig.'); valid=false; }
   if (isNaN(odometer)||odometer<=0)      { setError('err-tank-odometer','Vul een geldige kilometerstand in.'); valid=false; }
   if (isNaN(liters)||liters<=0)          { setError('err-tank-liters','Liters moet groter zijn dan 0.'); valid=false; }
   if (isNaN(totalCost)||totalCost<=0)    { setError('err-tank-cost','Bedrag moet groter zijn dan 0.'); valid=false; }
   if (!valid) return;
 
   showSpinner();
-  const busEntries = await getBusEntries(plate);
+  const busEntries = await getVoertuigEntries(plate);
   hideSpinner();
 
   const lastEntry = busEntries.at(-1);
@@ -1226,7 +1226,7 @@ async function commitFuelEntry(plate, odometer, liters, totalCost, note, exclude
   await insertEntry(entry);
   await recalcAndSave(plate);
   hideSpinner();
-  navigate('bus-detail', { plate });
+  navigate('voertuig-detail', { plate });
 }
 
 /* ════════════════════════════════════════════════════
@@ -1234,7 +1234,7 @@ async function commitFuelEntry(plate, odometer, liters, totalCost, note, exclude
    ════════════════════════════════════════════════════ */
 async function openEditModal(id, plate) {
   showSpinner();
-  const entries = await getBusEntries(plate);
+  const entries = await getVoertuigEntries(plate);
   hideSpinner();
   const entry = entries.find(e=>e.id===id);
   if (!entry) return;
@@ -1269,7 +1269,7 @@ async function saveEditEntry() {
   if (!valid) return;
 
   showSpinner();
-  const entries = await getBusEntries(plate);
+  const entries = await getVoertuigEntries(plate);
   const others  = entries.filter(e=>e.id!==id);
   const prev    = others.filter(e=>e.odometer<odometer).at(-1);
   const next    = others.find(e=>e.odometer>odometer);
@@ -1282,11 +1282,11 @@ async function saveEditEntry() {
   await recalcAndSave(plate);
   hideSpinner();
   closeEditModal();
-  renderBusDetail(plate);
+  renderVoertuigDetail(plate);
 }
 
 /* ════════════════════════════════════════════════════
-   BUS MANAGEMENT
+   VOERTUIG BEHEER
    ════════════════════════════════════════════════════ */
 const COLORS = [
   {label:'Groen',hex:'#5E8C61'},{label:'Blauw',hex:'#4A80B8'},{label:'Rood',hex:'#C0392B'},
@@ -1295,87 +1295,87 @@ const COLORS = [
 ];
 let _editingPlate = null;
 
-function openBusForm(plate = null) {
+function openVoertuigForm(plate = null) {
   _editingPlate = plate;
-  document.getElementById('bus-modal-title').textContent = plate ? 'Bus bewerken' : 'Bus toevoegen';
-  clearErrors(['err-bus-plate','err-bus-name','err-bus-fuel','err-bus-color']);
+  document.getElementById('voertuig-modal-title').textContent = plate ? 'Voertuig bewerken' : 'Voertuig toevoegen';
+  clearErrors(['err-voertuig-plate','err-voertuig-name','err-voertuig-fuel','err-voertuig-color']);
   document.getElementById('color-swatches').innerHTML = COLORS.map(c =>
     `<div class="swatch" style="background:${c.hex}" title="${c.label}" onclick="selectColor('${c.hex}')"></div>`).join('');
 
   if (plate) {
     supabase.from('buses').select('*').eq('license_plate', plate).single().then(({data}) => {
       if (!data) return;
-      const bus = mapBus(data);
-      document.getElementById('bus-plate').value    = bus.licensePlate;
-      document.getElementById('bus-plate').disabled = true;
-      document.getElementById('bus-name').value  = bus.name;
-      document.getElementById('bus-fuel').value  = bus.fuelType;
-      document.getElementById('bus-color').value = bus.iconColor;
-      selectColor(bus.iconColor);
+      const voertuig = mapVoertuig(data);
+      document.getElementById('voertuig-plate').value    = voertuig.licensePlate;
+      document.getElementById('voertuig-plate').disabled = true;
+      document.getElementById('voertuig-name').value  = voertuig.name;
+      document.getElementById('voertuig-fuel').value  = voertuig.fuelType;
+      document.getElementById('voertuig-color').value = voertuig.iconColor;
+      selectColor(voertuig.iconColor);
     });
   } else {
-    ['bus-plate','bus-name'].forEach(id=>document.getElementById(id).value='');
-    document.getElementById('bus-plate').disabled = false;
-    document.getElementById('bus-fuel').value = '';
-    document.getElementById('bus-color').value = '';
+    ['voertuig-plate','voertuig-name'].forEach(id=>document.getElementById(id).value='');
+    document.getElementById('voertuig-plate').disabled = false;
+    document.getElementById('voertuig-fuel').value = '';
+    document.getElementById('voertuig-color').value = '';
   }
-  document.getElementById('bus-modal').classList.add('open');
+  document.getElementById('voertuig-modal').classList.add('open');
 }
 
 function selectColor(hex) {
-  document.getElementById('bus-color').value = hex;
+  document.getElementById('voertuig-color').value = hex;
   document.querySelectorAll('.swatch').forEach(s=>s.classList.toggle('selected', s.style.background===hex||s.style.backgroundColor===hex));
 }
-function closeBusModal() { document.getElementById('bus-modal').classList.remove('open'); document.getElementById('bus-plate').disabled=false; }
+function closeVoertuigModal() { document.getElementById('voertuig-modal').classList.remove('open'); document.getElementById('voertuig-plate').disabled=false; }
 
-async function saveBus() {
-  clearErrors(['err-bus-plate','err-bus-name','err-bus-fuel','err-bus-color']);
-  const plate = document.getElementById('bus-plate').value.trim().toUpperCase();
-  const name  = document.getElementById('bus-name').value.trim();
-  const fuel  = document.getElementById('bus-fuel').value;
-  const color = document.getElementById('bus-color').value;
+async function saveVoertuig() {
+  clearErrors(['err-voertuig-plate','err-voertuig-name','err-voertuig-fuel','err-voertuig-color']);
+  const plate = document.getElementById('voertuig-plate').value.trim().toUpperCase();
+  const name  = document.getElementById('voertuig-name').value.trim();
+  const fuel  = document.getElementById('voertuig-fuel').value;
+  const color = document.getElementById('voertuig-color').value;
   let valid=true;
-  if (!plate) { setError('err-bus-plate','Vul een kenteken in.'); valid=false; }
-  if (!name)  { setError('err-bus-name','Vul een naam in.');      valid=false; }
-  if (!fuel)  { setError('err-bus-fuel','Kies een brandstofsoort.'); valid=false; }
-  if (!color) { setError('err-bus-color','Kies een kleur.'); valid=false; }
+  if (!plate) { setError('err-voertuig-plate','Vul een kenteken in.'); valid=false; }
+  if (!name)  { setError('err-voertuig-name','Vul een naam in.');      valid=false; }
+  if (!fuel)  { setError('err-voertuig-fuel','Kies een brandstofsoort.'); valid=false; }
+  if (!color) { setError('err-voertuig-color','Kies een kleur.'); valid=false; }
   if (!valid) return;
 
   showSpinner();
   try {
     if (!_editingPlate) {
       const { data } = await supabase.from('buses').select('license_plate').eq('license_plate', plate).maybeSingle();
-      if (data) { setError('err-bus-plate','Dit kenteken bestaat al.'); hideSpinner(); return; }
+      if (data) { setError('err-voertuig-plate','Dit kenteken bestaat al.'); hideSpinner(); return; }
     }
-    await upsertBus({ licensePlate:plate, name, fuelType:fuel, iconColor:color });
-    closeBusModal();
-    renderBusManagement();
-  } catch(e) { setError('err-bus-plate','Opslaan mislukt: '+e.message); }
+    await upsertVoertuig({ licensePlate:plate, name, fuelType:fuel, iconColor:color });
+    closeVoertuigModal();
+    renderVoertuigBeheer();
+  } catch(e) { setError('err-voertuig-plate','Opslaan mislukt: '+e.message); }
   hideSpinner();
 }
 
-async function renderBusManagement() {
-  showSpinner(); const buses = await getBuses(); hideSpinner();
-  const list = document.getElementById('buses-list');
-  if (!buses.length) { list.innerHTML=`<div class="card empty-state"><div class="empty-state-icon">🚐</div><div class="empty-state-title">Nog geen bussen</div><p class="empty-state-text">Voeg je eerste bus toe hierboven.</p></div>`; return; }
-  list.innerHTML = buses.map(bus=>`
+async function renderVoertuigBeheer() {
+  showSpinner(); const buses = await getVoertuigen(); hideSpinner();
+  const list = document.getElementById('voertuigen-list');
+  if (!buses.length) { list.innerHTML=`<div class="card empty-state"><div class="empty-state-icon">🚐</div><div class="empty-state-title">Nog geen voertuigen</div><p class="empty-state-text">Voeg je eerste voertuig toe hierboven.</p></div>`; return; }
+  list.innerHTML = voertuigen.map(voertuig=>`
     <div class="card" style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">
-      ${camperSVG(bus.iconColor,44)}
-      <div style="flex:1;min-width:120px"><div style="font-family:Nunito;font-weight:900;font-size:1rem">${esc(bus.name)}</div>
-        <div style="font-size:.8rem;color:var(--text-muted)">${esc(bus.licensePlate)} · ${esc(bus.fuelType)}</div></div>
-      <button class="btn btn-secondary btn-sm" onclick="openBusForm('${esc(bus.licensePlate)}')">✏️ Bewerken</button>
-      <button class="btn btn-danger btn-sm" onclick="deleteBus('${esc(bus.licensePlate)}','${esc(bus.name)}')">🗑️ Verwijderen</button>
+      ${camperSVG(voertuig.iconColor,44)}
+      <div style="flex:1;min-width:120px"><div style="font-family:Nunito;font-weight:900;font-size:1rem">${esc(voertuig.name)}</div>
+        <div style="font-size:.8rem;color:var(--text-muted)">${esc(voertuig.licensePlate)} · ${esc(voertuig.fuelType)}</div></div>
+      <button class="btn btn-secondary btn-sm" onclick="openVoertuigForm('${esc(voertuig.licensePlate)}')">✏️ Bewerken</button>
+      <button class="btn btn-danger btn-sm" onclick="deleteVoertuig('${esc(voertuig.licensePlate)}','${esc(voertuig.name)}')">🗑️ Verwijderen</button>
     </div>`).join('');
 }
 
-async function deleteBus(plate, name) {
+async function deleteVoertuig(plate, name) {
   // Count entries so user knows what they're deleting
   showSpinner();
-  const entries = await getBusEntries(plate);
+  const entries = await getVoertuigEntries(plate);
   hideSpinner();
   const entryCount = entries.length;
   const msg = entryCount > 0
-    ? `Weet je zeker dat je "${name}" wilt verwijderen?\n\nDeze bus heeft ${entryCount} tankbeurt${entryCount === 1 ? '' : 'en'} — die worden ook verwijderd. Dit kan niet ongedaan worden gemaakt.`
+    ? `Weet je zeker dat je "${name}" wilt verwijderen?\n\nDit voertuig heeft ${entryCount} tankbeurt${entryCount === 1 ? '' : 'en'} — die worden ook verwijderd. Dit kan niet ongedaan worden gemaakt.`
     : `Weet je zeker dat je "${name}" wilt verwijderen? Dit kan niet ongedaan worden gemaakt.`;
   if (!confirm(msg)) return;
   showSpinner();
@@ -1383,21 +1383,21 @@ async function deleteBus(plate, name) {
   const { error } = await supabase.from('buses').delete().eq('license_plate', plate);
   hideSpinner();
   if (error) { alert('Verwijderen mislukt: ' + error.message); return; }
-  renderBusManagement();
+  renderVoertuigBeheer();
 }
 
 /* ════════════════════════════════════════════════════
    NFC / QR / EXPORT
    ════════════════════════════════════════════════════ */
 async function renderNFC() {
-  showSpinner(); const buses=await getBuses(); hideSpinner();
+  showSpinner(); const buses=await getVoertuigen(); hideSpinner();
   const list=document.getElementById('nfc-list');
-  if(!buses.length){list.innerHTML='<div class="alert alert-info">Voeg eerst een bus toe.</div>';return;}
+  if(!buses.length){list.innerHTML='<div class="alert alert-info">Voeg eerst een voertuig toe.</div>';return;}
   const base=window.location.origin+window.location.pathname;
-  list.innerHTML=buses.map(bus=>{
-    const url=`${base}?bus=${encodeURIComponent(bus.licensePlate)}`;
+  list.innerHTML=voertuigen.map(voertuig=>{
+    const url=`${base}?voertuig=${encodeURIComponent(voertuig.licensePlate)}`;
     return `<div class="nfc-card">
-      <div style="display:flex;align-items:center;gap:12px">${camperSVG(bus.iconColor,40)}<div><strong>${esc(bus.name)}</strong><div style="font-size:.78rem;color:var(--text-muted)">${esc(bus.licensePlate)}</div></div></div>
+      <div style="display:flex;align-items:center;gap:12px">${camperSVG(voertuig.iconColor,40)}<div><strong>${esc(voertuig.name)}</strong><div style="font-size:.78rem;color:var(--text-muted)">${esc(voertuig.licensePlate)}</div></div></div>
       <div class="url-box" onclick="copyToClipboard('${url}',this)">${url}</div>
       <div style="font-size:.75rem;color:var(--text-muted)">📋 Klik om te kopiëren</div>
     </div>`;}).join('');
@@ -1405,18 +1405,18 @@ async function renderNFC() {
 function copyToClipboard(text,el){navigator.clipboard.writeText(text).then(()=>{const o=el.textContent;el.textContent='✅ Gekopieerd!';setTimeout(()=>el.textContent=o,1500);});}
 
 async function renderQR() {
-  showSpinner(); const buses=await getBuses(); hideSpinner();
+  showSpinner(); const buses=await getVoertuigen(); hideSpinner();
   const list=document.getElementById('qr-list');
-  if(!buses.length){list.innerHTML='<div class="alert alert-info">Voeg eerst een bus toe.</div>';return;}
+  if(!buses.length){list.innerHTML='<div class="alert alert-info">Voeg eerst een voertuig toe.</div>';return;}
   const base=window.location.origin+window.location.pathname;
-  list.innerHTML=buses.map((bus,i)=>`
+  list.innerHTML=voertuigen.map((voertuig,i)=>`
     <div class="qr-card">
-      <div style="display:flex;align-items:center;gap:12px">${camperSVG(bus.iconColor,40)}<div><strong>${esc(bus.name)}</strong><div style="font-size:.78rem;color:var(--text-muted)">${esc(bus.licensePlate)}</div></div></div>
+      <div style="display:flex;align-items:center;gap:12px">${camperSVG(voertuig.iconColor,40)}<div><strong>${esc(voertuig.name)}</strong><div style="font-size:.78rem;color:var(--text-muted)">${esc(voertuig.licensePlate)}</div></div></div>
       <div id="qr-wrap-${i}" style="background:#fff;display:inline-block;padding:10px;border-radius:8px;border:2px solid var(--sand-dark)"></div>
-      <button class="btn btn-primary btn-sm" onclick="downloadQR(${i},'${esc(bus.name)}')">⬇️ Download QR</button>
+      <button class="btn btn-primary btn-sm" onclick="downloadQR(${i},'${esc(voertuig.name)}')">⬇️ Download QR</button>
     </div>`).join('');
-  setTimeout(()=>buses.forEach((bus,i)=>{
-    const url=`${base}?bus=${encodeURIComponent(bus.licensePlate)}`;
+  setTimeout(()=>voertuigen.forEach((voertuig,i)=>{
+    const url=`${base}?voertuig=${encodeURIComponent(voertuig.licensePlate)}`;
     const el=document.getElementById('qr-wrap-'+i);
     if(el) new QRCode(el,{text:url,width:160,height:160,correctLevel:QRCode.CorrectLevel.M});
   }),50);
@@ -1424,14 +1424,14 @@ async function renderQR() {
 function downloadQR(idx,name){const wrap=document.getElementById('qr-wrap-'+idx);const img=wrap?.querySelector('img');if(!img)return;const a=document.createElement('a');a.href=img.src;a.download='qr-'+name.replace(/\s+/g,'-')+'.png';a.click();}
 
 async function renderExport() {
-  showSpinner(); const buses=await getBuses(); hideSpinner();
+  showSpinner(); const buses=await getVoertuigen(); hideSpinner();
   const list=document.getElementById('export-list');
-  if(!buses.length){list.innerHTML='<div class="alert alert-info">Voeg eerst een bus toe.</div>';return;}
+  if(!buses.length){list.innerHTML='<div class="alert alert-info">Voeg eerst een voertuig toe.</div>';return;}
   list.innerHTML=`
-    <div class="card"><div class="section-hdr">📥 Per bus</div>
-      ${buses.map(bus=>`<div style="display:flex;align-items:center;gap:12px;margin-bottom:10px;flex-wrap:wrap">
-        ${camperSVG(bus.iconColor,36)}<span style="font-weight:700;flex:1">${esc(bus.name)} <small style="color:var(--text-muted)">${esc(bus.licensePlate)}</small></span>
-        <button class="btn btn-primary btn-sm" onclick="exportBusCSV('${esc(bus.licensePlate)}')">📊 Download CSV</button>
+    <div class="card"><div class="section-hdr">📥 Per voertuig</div>
+      ${voertuigen.map(voertuig=>`<div style="display:flex;align-items:center;gap:12px;margin-bottom:10px;flex-wrap:wrap">
+        ${camperSVG(voertuig.iconColor,36)}<span style="font-weight:700;flex:1">${esc(voertuig.name)} <small style="color:var(--text-muted)">${esc(voertuig.licensePlate)}</small></span>
+        <button class="btn btn-primary btn-sm" onclick="exportBusCSV('${esc(voertuig.licensePlate)}')">📊 Download CSV</button>
       </div>`).join('')}</div>
     <div class="card"><div class="section-hdr">📥 Alle bussen</div>
       <button class="btn btn-primary" onclick="exportAllCSV()">📊 Download alle bussen</button></div>`;
@@ -1443,15 +1443,15 @@ function downloadCSV(csv,fn){const a=document.createElement('a');a.href=URL.crea
 
 async function exportBusCSV(plate) {
   showSpinner();
-  const buses=await getBuses(); const bus=buses.find(b=>b.licensePlate===plate);
-  const entries=await getBusEntries(plate); hideSpinner();
-  const rows=entries.map(e=>[plate,bus?.name??'',bus?.fuelType??'',e.datetime,csvNum(e.odometer,0),csvNum(e.liters,2),csvNum(e.totalCost,2),(e.note||'').replace(/"/g,'""'),e.excluded_from_stats?'Ja':'Nee',csvNum(e.calculatedDistance,0),csvNum(e.calculatedKmPerLiter,1),csvNum(e.calculatedLitersPer100Km,1),csvNum(e.calculatedCostPerKm,2)]);
-  downloadCSV(rowsToCSV(rows),`tanklog-${plate}.csv`);
+  const voertuigen=await getVoertuigen(); const voertuig=voertuigen.find(b=>b.licensePlate===plate);
+  const entries=await getVoertuigEntries(plate); hideSpinner();
+  const rows=entries.map(e=>[plate,voertuig?.name??'',voertuig?.fuelType??'',e.datetime,csvNum(e.odometer,0),csvNum(e.liters,2),csvNum(e.totalCost,2),(e.note||'').replace(/"/g,'""'),e.excluded_from_stats?'Ja':'Nee',csvNum(e.calculatedDistance,0),csvNum(e.calculatedKmPerLiter,1),csvNum(e.calculatedLitersPer100Km,1),csvNum(e.calculatedCostPerKm,2)]);
+  downloadCSV(rowsToCSV(rows),`tankie-${plate}.csv`);
 }
 async function exportAllCSV() {
-  showSpinner(); const buses=await getBuses(); const allRows=[];
-  for(const bus of buses){const entries=await getBusEntries(bus.licensePlate);entries.forEach(e=>allRows.push([bus.licensePlate,bus.name,bus.fuelType,e.datetime,csvNum(e.odometer,0),csvNum(e.liters,2),csvNum(e.totalCost,2),(e.note||'').replace(/"/g,'""'),e.excluded_from_stats?'Ja':'Nee',csvNum(e.calculatedDistance,0),csvNum(e.calculatedKmPerLiter,1),csvNum(e.calculatedLitersPer100Km,1),csvNum(e.calculatedCostPerKm,2)]));};
-  hideSpinner(); downloadCSV(rowsToCSV(allRows),'tanklog-alle-bussen.csv');
+  showSpinner(); const buses=await getVoertuigen(); const allRows=[];
+  for(const voertuig of voertuigen){const entries=await getVoertuigEntries(voertuig.licensePlate);entries.forEach(e=>allRows.push([voertuig.licensePlate,voertuig.name,voertuig.fuelType,e.datetime,csvNum(e.odometer,0),csvNum(e.liters,2),csvNum(e.totalCost,2),(e.note||'').replace(/"/g,'""'),e.excluded_from_stats?'Ja':'Nee',csvNum(e.calculatedDistance,0),csvNum(e.calculatedKmPerLiter,1),csvNum(e.calculatedLitersPer100Km,1),csvNum(e.calculatedCostPerKm,2)]));};
+  hideSpinner(); downloadCSV(rowsToCSV(allRows),'tankie-alle-voertuigen.csv');
 }
 
 
@@ -1563,7 +1563,7 @@ function clearErrors(ids){ids.forEach(id=>document.getElementById(id).textConten
 document.querySelectorAll('.modal-overlay').forEach(o=>o.addEventListener('click',e=>{if(e.target===o)o.classList.remove('open');}));
 
 // PWA
-const _ml=document.createElement('link');_ml.rel='manifest';_ml.href=URL.createObjectURL(new Blob([JSON.stringify({name:'TankLog',short_name:'TankLog',start_url:'./',display:'standalone',background_color:'#F5EDD8',theme_color:'#5E8C61'})],{type:'application/manifest+json'}));document.head.appendChild(_ml);
+const _ml=document.createElement('link');_ml.rel='manifest';_ml.href=URL.createObjectURL(new Blob([JSON.stringify({name:'Tankie',short_name:'Tankie',start_url:'./',display:'standalone',background_color:'#F5EDD8',theme_color:'#5E8C61'})],{type:'application/manifest+json'}));document.head.appendChild(_ml);
 </script>
 </body>
 </html>
