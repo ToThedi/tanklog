@@ -809,13 +809,13 @@ function navigate(page, params = {}) {
   const navBtn = document.getElementById('nav-' + page);
   if (navBtn) navBtn.classList.add('active');
 
-  if (page === 'dashboard')  renderDashboard();
-  if (page === 'tank')       renderTankForm(params.plate || null);
+  if (page === 'dashboard')       renderDashboard();
+  if (page === 'tank')            renderTankForm(params.plate || null);
   if (page === 'voertuig-detail') renderVoertuigDetail(params.plate);
-  if (page === 'buses')      renderVoertuigBeheer();
-  if (page === 'nfc')        renderNFC();
-  if (page === 'qr')         renderQR();
-  if (page === 'export')     renderExport();
+  if (page === 'voertuigen')      renderVoertuigBeheer();
+  if (page === 'nfc')             renderNFC();
+  if (page === 'qr')              renderQR();
+  if (page === 'export')          renderExport();
 }
 
 window.addEventListener('DOMContentLoaded', () => {
