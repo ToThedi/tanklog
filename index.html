@@ -460,6 +460,7 @@
         <label class="form-label">Kilometerstand (km) *</label>
         <input type="text" inputmode="numeric" class="form-input" id="tank-odometer" placeholder="bv. 102.450" autocomplete="off">
         <div class="error-msg" id="err-tank-odometer"></div>
+        <div id="odometer-hint" style="display:none;margin-top:5px;font-size:.8rem;color:var(--text-muted);font-weight:600"></div>
       </div>
 
       <!-- Liters -->
@@ -474,6 +475,7 @@
         <label class="form-label">Totaalbedrag (€) *</label>
         <input type="text" inputmode="decimal" class="form-input" id="tank-cost" placeholder="bv. 78,50" autocomplete="off">
         <div class="error-msg" id="err-tank-cost"></div>
+        <div id="price-per-liter" style="display:none;margin-top:5px;font-size:.8rem;color:var(--moss-dark);font-weight:700"></div>
       </div>
 
       <!-- Opmerking -->
@@ -877,10 +879,10 @@ async function renderDashboard() {
         </div>
       </div>
       <div class="bus-stats">
-        <div class="bus-stat"><div class="bus-stat-label">Gem. km/l</div><div class="bus-stat-value ${stats.avgKmL==null?'muted':''}">${stats.avgKmL??'–'}</div></div>
-        <div class="bus-stat"><div class="bus-stat-label">Gem. l/100km</div><div class="bus-stat-value ${stats.avgL100==null?'muted':''}">${stats.avgL100??'–'}</div></div>
-        <div class="bus-stat"><div class="bus-stat-label">€/km</div><div class="bus-stat-value ${stats.avgCostKm==null?'muted':''}">${stats.avgCostKm!=null?'€ '+stats.avgCostKm:'–'}</div></div>
-        <div class="bus-stat"><div class="bus-stat-label">Laatste tankbeurt</div><div class="bus-stat-value muted" style="font-size:.8rem">${last?formatDate(last.datetime):'—'}</div></div>
+        <div class="bus-stat"><div class="bus-stat-label">Gem. km/l</div><div class="bus-stat-value ${stats.avgKmL==null?'muted':''}">${stats.avgKmL!=null?fmtKml(stats.avgKmL):'–'}</div></div>
+        <div class="bus-stat"><div class="bus-stat-label">Gem. l/100km</div><div class="bus-stat-value ${stats.avgL100==null?'muted':''}">${stats.avgL100!=null?fmtL100(stats.avgL100):'–'}</div></div>
+        <div class="bus-stat"><div class="bus-stat-label">€/km</div><div class="bus-stat-value ${stats.avgCostKm==null?'muted':''}">${stats.avgCostKm!=null?fmtCostKm(stats.avgCostKm):'–'}</div></div>
+        <div class="bus-stat"><div class="bus-stat-label">Laatste tankbeurt</div><div class="bus-stat-value muted" style="font-size:.8rem">${last?daysAgoLabel(last.datetime):'—'}</div></div>
       </div>
       <div class="bus-card-actions">
         <button class="btn btn-primary btn-sm btn-full" onclick="navigate('tank',{plate:'${esc(bus.licensePlate)}'})">⛽ Tanken</button>
@@ -1000,9 +1002,9 @@ function renderDetailContent(plate, allEntries, fromDate, toDate) {
   // ── Stats row ──
   const statsEl = document.getElementById('detail-stats-row');
   if (statsEl) statsEl.innerHTML = `
-    <div class="stat-box"><div class="stat-box-label">Gem. km/l</div><div class="stat-box-val ${stats.avgKmL==null?'nd':''}">${nd(stats.avgKmL)}</div></div>
-    <div class="stat-box"><div class="stat-box-label">Gem. l/100km</div><div class="stat-box-val ${stats.avgL100==null?'nd':''}">${nd(stats.avgL100)}</div></div>
-    <div class="stat-box"><div class="stat-box-label">Gem. €/km</div><div class="stat-box-val ${stats.avgCostKm==null?'nd':''}">${stats.avgCostKm!=null?'€ '+stats.avgCostKm:'–'}</div></div>
+    <div class="stat-box"><div class="stat-box-label">Gem. km/l</div><div class="stat-box-val ${stats.avgKmL==null?'nd':''}">${stats.avgKmL!=null?fmtKml(stats.avgKmL):'–'}</div></div>
+    <div class="stat-box"><div class="stat-box-label">Gem. l/100km</div><div class="stat-box-val ${stats.avgL100==null?'nd':''}">${stats.avgL100!=null?fmtL100(stats.avgL100):'–'}</div></div>
+    <div class="stat-box"><div class="stat-box-label">Gem. €/km</div><div class="stat-box-val ${stats.avgCostKm==null?'nd':''}">${stats.avgCostKm!=null?fmtCostKm(stats.avgCostKm):'–'}</div></div>
     <div class="stat-box"><div class="stat-box-label">Tankbeurten</div><div class="stat-box-val">${filtered.length}</div></div>`;
 
   // ── Filter summary (totals) ──
@@ -1044,9 +1046,9 @@ function renderDetailContent(plate, allEntries, fromDate, toDate) {
 function buildEntriesTable(entries, plate) {
   const rows = [...entries].reverse().map(e => `
     <tr class="${e.excluded_from_stats?'excluded':''}">
-      <td>${formatDate(e.datetime)}</td><td>${fmt(e.odometer)} km</td><td>${fmt(e.liters)} L</td>
-      <td>€ ${fmt(e.totalCost)}</td><td>${e.calculatedKmPerLiter??'—'}</td>
-      <td>${e.calculatedCostPerKm!=null?'€ '+e.calculatedCostPerKm:'—'}</td>
+      <td>${formatDate(e.datetime)}</td><td>${fmt(e.odometer)} km</td><td>${Number(e.liters).toLocaleString('nl-NL', {minimumFractionDigits:2,maximumFractionDigits:2})} L</td>
+      <td>${fmtMoney(e.totalCost)}</td><td>${fmtKml(e.calculatedKmPerLiter)}</td>
+      <td>${fmtCostKm(e.calculatedCostPerKm)}</td>
       <td style="max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(e.note||'')}">${esc(e.note||'—')}</td>
       <td>${e.excluded_from_stats?'<span class="badge badge-excluded">Uitgesloten</span>':'<span class="badge badge-ok">Meegenomen</span>'}</td>
       <td>
@@ -1100,14 +1102,55 @@ async function renderTankForm(plate) {
   } else {
     document.getElementById('tank-no-bus-alert').style.display = 'block';
   }
-  sel.onchange = () => {
+  sel.onchange = async () => {
     const b = buses.find(b=>b.licensePlate===sel.value);
-    if (b) showBusPreview(b); else document.getElementById('selected-bus-preview').style.display='none';
+    if (b) { showBusPreview(b); await loadOdometerHint(b.licensePlate); }
+    else {
+      document.getElementById('selected-bus-preview').style.display='none';
+      document.getElementById('odometer-hint').style.display='none';
+    }
   };
   // Enforce European numeric input on tank form fields
   enforceNumericInput(document.getElementById('tank-odometer'), false);
   enforceNumericInput(document.getElementById('tank-liters'), true);
   enforceNumericInput(document.getElementById('tank-cost'), true);
+  // Live prijs/liter berekening
+  ['tank-liters','tank-cost'].forEach(id => {
+    document.getElementById(id).addEventListener('input', updatePricePerLiter);
+  });
+  // If plate was pre-selected via URL, also load the hint
+  if (plate) {
+    const bus = buses.find(b=>b.licensePlate===plate);
+    if (bus) await loadOdometerHint(plate);
+  }
+}
+
+async function loadOdometerHint(plate) {
+  const entries = await getBusEntries(plate);
+  const last = entries.at(-1);
+  const hintEl = document.getElementById('odometer-hint');
+  if (!hintEl) return;
+  if (last) {
+    hintEl.style.display = 'block';
+    hintEl.innerHTML = `📍 Vorige meting: <strong>${fmt(last.odometer)} km</strong> <span style="color:var(--text-muted)">(${daysAgoLabel(last.datetime)})</span>`;
+  } else {
+    hintEl.style.display = 'block';
+    hintEl.innerHTML = '📍 Eerste tankbeurt voor deze bus — nog geen vorige meting.';
+  }
+}
+
+function updatePricePerLiter() {
+  const liters = parseEuropean(document.getElementById('tank-liters').value);
+  const cost   = parseEuropean(document.getElementById('tank-cost').value);
+  const el     = document.getElementById('price-per-liter');
+  if (!el) return;
+  if (liters > 0 && cost > 0) {
+    const ppl = cost / liters;
+    el.style.display = 'block';
+    el.innerHTML = `⛽ Prijs per liter: <strong>${ppl.toLocaleString('nl-NL', {minimumFractionDigits:3, maximumFractionDigits:3})}</strong>`;
+  } else {
+    el.style.display = 'none';
+  }
 }
 
 function showBusPreview(bus) {
@@ -1155,7 +1198,7 @@ async function saveFuelEntry() {
     if (dev.deviates) {
       _pendingEntry = { plate, odometer, liters, totalCost, note };
       document.getElementById('deviation-msg').innerHTML =
-        `Deze meting wijkt <strong>${dev.pct}%</strong> af van het gemiddelde (gem. ${dev.avgKmL} km/l, nu ${kmPerLiter.toFixed(2)} km/l).<br><br>
+        `Deze meting wijkt <strong>${dev.pct}%</strong> af van het gemiddelde (gem. ${fmtKml(dev.avgKmL)} km/l, nu ${Number(kmPerLiter).toLocaleString('nl-NL',{minimumFractionDigits:1,maximumFractionDigits:1})} km/l).<br><br>
          Mogelijk is er een tankbeurt vergeten of een invoerfout gemaakt.`;
       document.getElementById('deviation-modal').classList.add('open');
       return;
@@ -1402,12 +1445,12 @@ async function exportBusCSV(plate) {
   showSpinner();
   const buses=await getBuses(); const bus=buses.find(b=>b.licensePlate===plate);
   const entries=await getBusEntries(plate); hideSpinner();
-  const rows=entries.map(e=>[plate,bus?.name??'',bus?.fuelType??'',e.datetime,e.odometer,e.liters,e.totalCost,(e.note||'').replace(/"/g,'""'),e.excluded_from_stats?'Ja':'Nee',e.calculatedDistance??'',e.calculatedKmPerLiter??'',e.calculatedLitersPer100Km??'',e.calculatedCostPerKm??'']);
+  const rows=entries.map(e=>[plate,bus?.name??'',bus?.fuelType??'',e.datetime,csvNum(e.odometer,0),csvNum(e.liters,2),csvNum(e.totalCost,2),(e.note||'').replace(/"/g,'""'),e.excluded_from_stats?'Ja':'Nee',csvNum(e.calculatedDistance,0),csvNum(e.calculatedKmPerLiter,1),csvNum(e.calculatedLitersPer100Km,1),csvNum(e.calculatedCostPerKm,2)]);
   downloadCSV(rowsToCSV(rows),`tanklog-${plate}.csv`);
 }
 async function exportAllCSV() {
   showSpinner(); const buses=await getBuses(); const allRows=[];
-  for(const bus of buses){const entries=await getBusEntries(bus.licensePlate);entries.forEach(e=>allRows.push([bus.licensePlate,bus.name,bus.fuelType,e.datetime,e.odometer,e.liters,e.totalCost,(e.note||'').replace(/"/g,'""'),e.excluded_from_stats?'Ja':'Nee',e.calculatedDistance??'',e.calculatedKmPerLiter??'',e.calculatedLitersPer100Km??'',e.calculatedCostPerKm??'']));}
+  for(const bus of buses){const entries=await getBusEntries(bus.licensePlate);entries.forEach(e=>allRows.push([bus.licensePlate,bus.name,bus.fuelType,e.datetime,csvNum(e.odometer,0),csvNum(e.liters,2),csvNum(e.totalCost,2),(e.note||'').replace(/"/g,'""'),e.excluded_from_stats?'Ja':'Nee',csvNum(e.calculatedDistance,0),csvNum(e.calculatedKmPerLiter,1),csvNum(e.calculatedLitersPer100Km,1),csvNum(e.calculatedCostPerKm,2)]));};
   hideSpinner(); downloadCSV(rowsToCSV(allRows),'tanklog-alle-bussen.csv');
 }
 
@@ -1465,10 +1508,56 @@ function formatEuropean(num, decimals = 2) {
   return Number(num).toLocaleString('nl-NL', { minimumFractionDigits: 0, maximumFractionDigits: decimals });
 }
 
+
+/* ════════════════════════════════════════════════════
+   DISPLAY FORMATTERS  (European locale, nl-NL)
+   fmtKml    → 1 decimal,  comma separator  e.g.  "8,4"
+   fmtCostKm → 2 decimals, comma separator  e.g.  "€ 0,12"  (always 2 dec — it's money)
+   fmtL100   → 1 decimal,  comma separator  e.g.  "12,3"
+   fmtMoney  → 2 decimals, comma separator  e.g.  "€ 78,50"
+   fmt       → integer display with thousand dot e.g. "102.450"
+   ════════════════════════════════════════════════════ */
+function fmtKml(val) {
+  if (val == null) return '—';
+  return Number(val).toLocaleString('nl-NL', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+}
+function fmtCostKm(val) {
+  if (val == null) return '—';
+  return '€ ' + Number(val).toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+function fmtL100(val) {
+  if (val == null) return '—';
+  return Number(val).toLocaleString('nl-NL', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+}
+function fmtMoney(val) {
+  if (val == null) return '—';
+  return '€ ' + Number(val).toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
 /* HELPERS */
 function esc(str){return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
-function fmt(num){return num==null?'—':Number(num).toLocaleString('nl-NL');}
+function fmt(num){return num==null?'—':Number(num).toLocaleString('nl-NL',{maximumFractionDigits:0});}
+function daysAgoLabel(iso) {
+  if (!iso) return '—';
+  const diff = Math.floor((Date.now() - new Date(iso)) / 86400000);
+  if (diff === 0) return 'vandaag';
+  if (diff === 1) return 'gisteren';
+  if (diff < 14) return `${diff} dagen geleden`;
+  if (diff < 30) return `${Math.floor(diff/7)} weken geleden`;
+  if (diff < 365) return `${Math.floor(diff/30)} maanden geleden`;
+  return `${Math.floor(diff/365)} jaar geleden`;
+}
 function formatDate(iso){if(!iso)return '—';const d=new Date(iso);return d.toLocaleDateString('nl-NL',{day:'2-digit',month:'short',year:'numeric'})+' '+d.toLocaleTimeString('nl-NL',{hour:'2-digit',minute:'2-digit'});}
+function csvNum(val, decimals) {
+  // Format numbers for CSV in European format (comma as decimal separator)
+  // so Excel (Dutch locale) interprets them correctly as numbers
+  if (val == null || val === '') return '';
+  return Number(val).toLocaleString('nl-NL', {
+    minimumFractionDigits: decimals ?? 0,
+    maximumFractionDigits: decimals ?? 10,
+    useGrouping: false   // no thousands separator in CSV — keeps it clean
+  });
+}
 function setError(id,msg){document.getElementById(id).textContent=msg;}
 function clearErrors(ids){ids.forEach(id=>document.getElementById(id).textContent='');}
 document.querySelectorAll('.modal-overlay').forEach(o=>o.addEventListener('click',e=>{if(e.target===o)o.classList.remove('open');}));
