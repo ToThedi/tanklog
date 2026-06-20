@@ -11,6 +11,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&family=Nunito+Sans:wght@400;600&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <style>
   :root {
     --sand: #F5EDD8;
@@ -366,11 +367,24 @@
     .stats-row { grid-template-columns: 1fr 1fr; }
     .bus-card-actions { flex-direction: column; }
   }
+
+  .spinner-overlay { display: none; position: fixed; inset: 0; background: rgba(245,237,216,.75); z-index: 300; align-items: center; justify-content: center; flex-direction: column; gap: 12px; }
+  .spinner-overlay.active { display: flex; }
+  .spinner { width: 40px; height: 40px; border: 4px solid var(--moss-light); border-top-color: var(--moss); border-radius: 50%; animation: spin .7s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .spinner-label { font-family: 'Nunito', sans-serif; font-weight: 800; color: var(--moss-dark); }
 </style>
 </head>
 <body>
 
 <!-- TOP BAR -->
+
+<!-- LOADING SPINNER -->
+<div class="spinner-overlay" id="spinner">
+  <div class="spinner"></div>
+  <div class="spinner-label">Laden...</div>
+</div>
+
 <nav class="topbar">
   <div class="topbar-inner">
     <a class="topbar-logo" href="#" onclick="navigate('dashboard')">🚐 TankLog</a>
@@ -572,6 +586,7 @@
   <div class="modal">
     <div class="modal-title">Tankbeurt bewerken</div>
     <input type="hidden" id="edit-entry-id">
+    <input type="hidden" id="edit-entry-plate">
     <div class="form-group">
       <label class="form-label">Kilometerstand (km) *</label>
       <input type="number" class="form-input" id="edit-odometer" min="0" step="1">
@@ -616,180 +631,202 @@
 
 <script>
 /* ════════════════════════════════════════════════════
-   DATA LAYER
+   SUPABASE CONFIG
+   Credentials are hard-coded here so every visitor
+   connects automatically — no login screen needed.
+   The anon key is safe to expose publicly; access is
+   controlled by Row Level Security in Supabase.
    ════════════════════════════════════════════════════ */
 
-const LS_BUSES   = 'tanklog_buses';
-const LS_ENTRIES = 'tanklog_entries';
+const SUPABASE_URL = 'https://bmpshueuuhfyzscbspeb.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_PM2kqPgPDZ7n7NAjfGmsPg_k5uzYXgk';
 
-function getBuses()   { return JSON.parse(localStorage.getItem(LS_BUSES)   || '[]'); }
-function getEntries() { return JSON.parse(localStorage.getItem(LS_ENTRIES) || '[]'); }
-function saveBuses(b)   { localStorage.setItem(LS_BUSES,   JSON.stringify(b)); }
-function saveEntries(e) { localStorage.setItem(LS_ENTRIES, JSON.stringify(e)); }
+let supabase = null;
 
-function generateId() {
-  return 'e-' + Date.now() + '-' + Math.random().toString(36).slice(2, 7);
+function initSupabase() {
+  supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+  const qs = new URLSearchParams(window.location.search);
+  const busParam = qs.get('bus');
+  if (busParam) navigate('tank', { plate: busParam });
+  else navigate('dashboard');
 }
 
-function getBusEntries(plate) {
-  return getEntries()
-    .filter(e => e.busLicensePlate === plate)
-    .sort((a, b) => a.odometer - b.odometer); // chronological by odometer
+/* ════════════════════════════════════════════════════
+   SPINNER
+   ════════════════════════════════════════════════════ */
+function showSpinner() { document.getElementById('spinner').classList.add('active'); }
+function hideSpinner() { document.getElementById('spinner').classList.remove('active'); }
+
+/* ════════════════════════════════════════════════════
+   DATA LAYER — Supabase
+   All public functions are async.
+   DB uses snake_case; JS uses camelCase (mapped below).
+   ════════════════════════════════════════════════════ */
+
+async function getBuses() {
+  const { data, error } = await supabase.from('buses').select('*').order('created_at', { ascending: true });
+  if (error) { console.error(error); return []; }
+  return data.map(mapBus);
+}
+
+async function getBusEntries(plate) {
+  const { data, error } = await supabase.from('fuel_entries').select('*')
+    .eq('bus_license_plate', plate).order('odometer', { ascending: true });
+  if (error) { console.error(error); return []; }
+  return data.map(mapEntry);
+}
+
+async function upsertBus(bus) {
+  const { error } = await supabase.from('buses').upsert({
+    license_plate: bus.licensePlate, name: bus.name,
+    fuel_type: bus.fuelType, icon_color: bus.iconColor,
+  }, { onConflict: 'license_plate' });
+  if (error) throw error;
+}
+
+async function insertEntry(entry) {
+  const { error } = await supabase.from('fuel_entries').insert(entryToRow(entry));
+  if (error) throw error;
+}
+
+async function updateEntry(entry) {
+  const { error } = await supabase.from('fuel_entries').update(entryToRow(entry)).eq('id', entry.id);
+  if (error) throw error;
+}
+
+async function updateEntryBatch(entries) {
+  for (const e of entries) {
+    const { error } = await supabase.from('fuel_entries').update(entryToRow(e)).eq('id', e.id);
+    if (error) throw error;
+  }
+}
+
+function mapBus(row) {
+  return { licensePlate: row.license_plate, name: row.name, fuelType: row.fuel_type, iconColor: row.icon_color, createdAt: row.created_at };
+}
+function mapEntry(row) {
+  return {
+    id: row.id, busLicensePlate: row.bus_license_plate,
+    odometer: Number(row.odometer), liters: Number(row.liters), totalCost: Number(row.total_cost),
+    note: row.note || '', datetime: row.datetime, excluded_from_stats: row.excluded_from_stats,
+    calculatedDistance:       row.calculated_distance        != null ? Number(row.calculated_distance)         : null,
+    calculatedKmPerLiter:     row.calculated_km_per_liter    != null ? Number(row.calculated_km_per_liter)     : null,
+    calculatedLitersPer100Km: row.calculated_liters_per_100km!= null ? Number(row.calculated_liters_per_100km) : null,
+    calculatedCostPerKm:      row.calculated_cost_per_km     != null ? Number(row.calculated_cost_per_km)      : null,
+  };
+}
+function entryToRow(e) {
+  return {
+    id: e.id, bus_license_plate: e.busLicensePlate,
+    odometer: e.odometer, liters: e.liters, total_cost: e.totalCost,
+    note: e.note || '', datetime: e.datetime, excluded_from_stats: e.excluded_from_stats,
+    calculated_distance: e.calculatedDistance, calculated_km_per_liter: e.calculatedKmPerLiter,
+    calculated_liters_per_100km: e.calculatedLitersPer100Km, calculated_cost_per_km: e.calculatedCostPerKm,
+  };
 }
 
 /* ════════════════════════════════════════════════════
    CALCULATION LOGIC
    ════════════════════════════════════════════════════
 
-   IMPORTANT: All entries remain in history forever.
-   - excluded_from_stats = true means the entry is NOT used for averages,
-     but its odometer IS still visible in history.
-   - Validation of odometer uses the LAST entry regardless of excluded status.
-   - Average statistics only use entries with excluded_from_stats === false
-     AND where calculatedKmPerLiter is not null (i.e. there was a previous entry).
-
-   Example:
-     Entry A: km 100000, 50L, included
-     Entry B: km 100500, 100L, EXCLUDED
-     Entry C: km 101000, 50L, included
-   → averages computed from A→C only.
-   → Entry B visible in history but not in average.
+   Entries sorted by odometer ASC.
+   - First entry: no fuel calculation (no previous reference).
+   - excluded_from_stats entries are NOT used for averages,
+     but their odometer IS part of the distance chain.
+   - Averages only include entries where:
+       excluded_from_stats === false AND calculatedKmPerLiter !== null
    ════════════════════════════════════════════════════ */
 
-/**
- * Recalculate computed fields for all entries of a bus.
- * We do this after every save/edit.
- * For the first entry (no previous entry) → no fuel calculation.
- */
-function recalcBusEntries(plate) {
-  const allEntries = getEntries();
-  const busEntries = allEntries
-    .filter(e => e.busLicensePlate === plate)
-    .sort((a, b) => a.odometer - b.odometer);
-
-  for (let i = 0; i < busEntries.length; i++) {
-    const entry = busEntries[i];
+function calcEntries(entries) {
+  return entries.map((e, i) => {
+    const r = { ...e };
     if (i === 0) {
-      // First entry: no distance to calculate from
-      entry.calculatedDistance     = null;
-      entry.calculatedKmPerLiter   = null;
-      entry.calculatedLitersPer100Km = null;
-      entry.calculatedCostPerKm    = null;
+      r.calculatedDistance = r.calculatedKmPerLiter = r.calculatedLitersPer100Km = r.calculatedCostPerKm = null;
     } else {
-      // Distance = this entry's odometer – previous entry's odometer (any entry)
-      const prev = busEntries[i - 1];
-      const dist = entry.odometer - prev.odometer;
-      entry.calculatedDistance = dist > 0 ? dist : null;
-      if (dist > 0 && entry.liters > 0) {
-        entry.calculatedKmPerLiter     = +(dist / entry.liters).toFixed(3);
-        entry.calculatedLitersPer100Km = +(entry.liters / dist * 100).toFixed(3);
-        entry.calculatedCostPerKm      = +(entry.totalCost / dist).toFixed(4);
+      const dist = r.odometer - entries[i-1].odometer;
+      r.calculatedDistance = dist > 0 ? dist : null;
+      if (dist > 0 && r.liters > 0) {
+        r.calculatedKmPerLiter     = +(dist / r.liters).toFixed(3);
+        r.calculatedLitersPer100Km = +(r.liters / dist * 100).toFixed(3);
+        r.calculatedCostPerKm      = +(r.totalCost / dist).toFixed(4);
       } else {
-        entry.calculatedKmPerLiter     = null;
-        entry.calculatedLitersPer100Km = null;
-        entry.calculatedCostPerKm      = null;
+        r.calculatedKmPerLiter = r.calculatedLitersPer100Km = r.calculatedCostPerKm = null;
       }
     }
-    // Write back
-    const idx = allEntries.findIndex(e => e.id === entry.id);
-    if (idx !== -1) allEntries[idx] = entry;
-  }
-  saveEntries(allEntries);
+    return r;
+  });
 }
 
-/**
- * Get statistics for a bus (averages based on INCLUDED entries only).
- */
-function getBusStats(plate) {
-  const entries = getBusEntries(plate);
+async function recalcAndSave(plate) {
+  const raw = await getBusEntries(plate); // sorted by odometer
+  const recalced = calcEntries(raw);
+  await updateEntryBatch(recalced);
+  return recalced;
+}
+
+function getStats(entries) {
   const valid = entries.filter(e => !e.excluded_from_stats && e.calculatedKmPerLiter !== null);
-  if (valid.length === 0) return { avgKmL: null, avgL100: null, avgCostKm: null, lastEntry: entries.at(-1) || null };
-
-  const avgKmL   = +(valid.reduce((s, e) => s + e.calculatedKmPerLiter, 0) / valid.length).toFixed(2);
-  const avgL100  = +(valid.reduce((s, e) => s + e.calculatedLitersPer100Km, 0) / valid.length).toFixed(2);
-  const avgCostKm = +(valid.reduce((s, e) => s + e.calculatedCostPerKm, 0) / valid.length).toFixed(4);
-  return { avgKmL, avgL100, avgCostKm, lastEntry: entries.at(-1) || null };
+  if (!valid.length) return { avgKmL: null, avgL100: null, avgCostKm: null };
+  return {
+    avgKmL:    +(valid.reduce((s,e)=>s+e.calculatedKmPerLiter,0)    /valid.length).toFixed(2),
+    avgL100:   +(valid.reduce((s,e)=>s+e.calculatedLitersPer100Km,0)/valid.length).toFixed(2),
+    avgCostKm: +(valid.reduce((s,e)=>s+e.calculatedCostPerKm,0)     /valid.length).toFixed(4),
+  };
 }
 
-/**
- * Check if a new kmPerLiter value deviates more than 10% from historical avg.
- * Returns: { deviates: bool, pct: number, avgKmL: number }
- */
-function checkDeviation(plate, kmPerLiter) {
-  const entries = getBusEntries(plate);
+function checkDeviation(entries, kmPerLiter) {
   const valid = entries.filter(e => !e.excluded_from_stats && e.calculatedKmPerLiter !== null);
   if (valid.length < 2) return { deviates: false };
-  const avg = valid.reduce((s, e) => s + e.calculatedKmPerLiter, 0) / valid.length;
-  const pct = Math.abs(kmPerLiter - avg) / avg * 100;
+  const avg = valid.reduce((s,e)=>s+e.calculatedKmPerLiter,0)/valid.length;
+  const pct = Math.abs(kmPerLiter - avg)/avg*100;
   return { deviates: pct > 10, pct: Math.round(pct), avgKmL: +avg.toFixed(2) };
 }
 
-/* ════════════════════════════════════════════════════
-   ROUTER / NAVIGATION
-   ════════════════════════════════════════════════════ */
+function generateId() { return 'e-'+Date.now()+'-'+Math.random().toString(36).slice(2,7); }
 
-let currentPage = 'dashboard';
+/* ════════════════════════════════════════════════════
+   ROUTER
+   ════════════════════════════════════════════════════ */
 
 function navigate(page, params = {}) {
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
-
   const pageEl = document.getElementById('page-' + page);
   if (!pageEl) return;
   pageEl.classList.add('active');
   const navBtn = document.getElementById('nav-' + page);
   if (navBtn) navBtn.classList.add('active');
 
-  currentPage = page;
-
-  // Render each page
-  if (page === 'dashboard')    renderDashboard();
-  if (page === 'tank')         renderTankForm(params.plate || null);
-  if (page === 'bus-detail')   renderBusDetail(params.plate);
-  if (page === 'buses')        renderBusManagement();
-  if (page === 'nfc')          renderNFC();
-  if (page === 'qr')           renderQR();
-  if (page === 'export')       renderExport();
+  if (page === 'dashboard')  renderDashboard();
+  if (page === 'tank')       renderTankForm(params.plate || null);
+  if (page === 'bus-detail') renderBusDetail(params.plate);
+  if (page === 'buses')      renderBusManagement();
+  if (page === 'nfc')        renderNFC();
+  if (page === 'qr')         renderQR();
+  if (page === 'export')     renderExport();
 }
 
-// On load: parse URL params for NFC / QR deep-linking
 window.addEventListener('DOMContentLoaded', () => {
-  loadDummyData();
-  const qs = new URLSearchParams(window.location.search);
-  const busParam = qs.get('bus');
-  if (busParam) {
-    navigate('tank', { plate: busParam });
-  } else {
-    navigate('dashboard');
-  }
+  initSupabase();
 });
 
 /* ════════════════════════════════════════════════════
    SVG CAMPER ICON
    ════════════════════════════════════════════════════ */
-
 function camperSVG(color, size = 52) {
   return `<svg width="${size}" height="${size}" viewBox="0 0 80 52" fill="none" xmlns="http://www.w3.org/2000/svg">
-    <!-- Body -->
     <rect x="4" y="14" width="56" height="28" rx="6" fill="${color}"/>
-    <!-- Cab -->
     <rect x="56" y="20" width="18" height="22" rx="5" fill="${color}"/>
-    <!-- Windows (cab) -->
     <rect x="59" y="23" width="12" height="10" rx="2" fill="rgba(255,255,255,0.65)"/>
-    <!-- Window (main) -->
     <rect x="10" y="18" width="20" height="12" rx="2" fill="rgba(255,255,255,0.65)"/>
     <rect x="34" y="18" width="18" height="12" rx="2" fill="rgba(255,255,255,0.65)"/>
-    <!-- Door line -->
     <line x1="32" y1="14" x2="32" y2="42" stroke="rgba(0,0,0,.12)" stroke-width="1.5"/>
-    <!-- Wheels -->
     <circle cx="18" cy="43" r="7" fill="#555"/>
     <circle cx="18" cy="43" r="3.5" fill="#ccc"/>
     <circle cx="62" cy="43" r="7" fill="#555"/>
     <circle cx="62" cy="43" r="3.5" fill="#ccc"/>
-    <!-- Bumper -->
     <rect x="4" y="38" width="6" height="6" rx="2" fill="rgba(0,0,0,.18)"/>
     <rect x="70" y="35" width="6" height="7" rx="2" fill="rgba(0,0,0,.18)"/>
-    <!-- Stripe -->
     <rect x="4" y="30" width="56" height="3" fill="rgba(255,255,255,.22)"/>
   </svg>`;
 }
@@ -797,28 +834,28 @@ function camperSVG(color, size = 52) {
 /* ════════════════════════════════════════════════════
    DASHBOARD
    ════════════════════════════════════════════════════ */
-
 let globalChartInstance = null;
 
-function renderDashboard() {
-  const buses = getBuses();
-  const grid  = document.getElementById('bus-grid');
+async function renderDashboard() {
+  showSpinner();
+  const buses = await getBuses();
+  const allEntriesArr = await Promise.all(buses.map(b => getBusEntries(b.licensePlate)));
+  hideSpinner();
+
+  const entriesMap = {};
+  buses.forEach((b,i) => entriesMap[b.licensePlate] = allEntriesArr[i]);
+
+  const grid = document.getElementById('bus-grid');
   const empty = document.getElementById('dashboard-empty');
   const chartCard = document.getElementById('global-chart-card');
 
-  if (buses.length === 0) {
-    empty.style.display = 'block';
-    grid.innerHTML = '';
-    chartCard.style.display = 'none';
-    return;
-  }
-  empty.style.display = 'none';
-  chartCard.style.display = 'block';
+  if (!buses.length) { empty.style.display='block'; grid.innerHTML=''; chartCard.style.display='none'; return; }
+  empty.style.display = 'none'; chartCard.style.display = 'block';
 
   grid.innerHTML = buses.map(bus => {
-    const stats = getBusStats(bus.licensePlate);
-    const last  = stats.lastEntry;
-    const lastDate = last ? formatDate(last.datetime) : '—';
+    const entries = entriesMap[bus.licensePlate];
+    const stats   = getStats(entries);
+    const last    = entries.at(-1);
     return `
     <div class="bus-card" style="border-top-color:${bus.iconColor}">
       <div class="bus-card-header">
@@ -830,22 +867,10 @@ function renderDashboard() {
         </div>
       </div>
       <div class="bus-stats">
-        <div class="bus-stat">
-          <div class="bus-stat-label">Gem. km/l</div>
-          <div class="bus-stat-value ${stats.avgKmL == null ? 'muted' : ''}">${stats.avgKmL != null ? stats.avgKmL : '–'}</div>
-        </div>
-        <div class="bus-stat">
-          <div class="bus-stat-label">Gem. l/100km</div>
-          <div class="bus-stat-value ${stats.avgL100 == null ? 'muted' : ''}">${stats.avgL100 != null ? stats.avgL100 : '–'}</div>
-        </div>
-        <div class="bus-stat">
-          <div class="bus-stat-label">€/km</div>
-          <div class="bus-stat-value ${stats.avgCostKm == null ? 'muted' : ''}">${stats.avgCostKm != null ? '€ ' + stats.avgCostKm : '–'}</div>
-        </div>
-        <div class="bus-stat">
-          <div class="bus-stat-label">Laatste tankbeurt</div>
-          <div class="bus-stat-value muted" style="font-size:.8rem">${lastDate}</div>
-        </div>
+        <div class="bus-stat"><div class="bus-stat-label">Gem. km/l</div><div class="bus-stat-value ${stats.avgKmL==null?'muted':''}">${stats.avgKmL??'–'}</div></div>
+        <div class="bus-stat"><div class="bus-stat-label">Gem. l/100km</div><div class="bus-stat-value ${stats.avgL100==null?'muted':''}">${stats.avgL100??'–'}</div></div>
+        <div class="bus-stat"><div class="bus-stat-label">€/km</div><div class="bus-stat-value ${stats.avgCostKm==null?'muted':''}">${stats.avgCostKm!=null?'€ '+stats.avgCostKm:'–'}</div></div>
+        <div class="bus-stat"><div class="bus-stat-label">Laatste tankbeurt</div><div class="bus-stat-value muted" style="font-size:.8rem">${last?formatDate(last.datetime):'—'}</div></div>
       </div>
       <div class="bus-card-actions">
         <button class="btn btn-primary btn-sm btn-full" onclick="navigate('tank',{plate:'${esc(bus.licensePlate)}'})">⛽ Tanken</button>
@@ -854,244 +879,148 @@ function renderDashboard() {
     </div>`;
   }).join('');
 
-  renderGlobalChart(buses);
+  renderGlobalChart(buses, entriesMap);
 }
 
-function renderGlobalChart(buses) {
+function renderGlobalChart(buses, entriesMap) {
   if (globalChartInstance) { globalChartInstance.destroy(); globalChartInstance = null; }
   const ctx = document.getElementById('globalChart');
   if (!ctx) return;
-
-  const COLORS = ['#5E8C61','#E8864A','#87B9D4','#9B59B6','#E91E8C','#F1C40F','#E74C3C','#1ABC9C'];
-  const datasets = [];
-
-  buses.forEach((bus, i) => {
-    const entries = getBusEntries(bus.licensePlate)
-      .filter(e => !e.excluded_from_stats && e.calculatedKmPerLiter !== null);
-    if (entries.length === 0) return;
-    datasets.push({
-      label: bus.name,
-      data: entries.map(e => ({ x: e.datetime.slice(0,10), y: e.calculatedKmPerLiter })),
-      borderColor: COLORS[i % COLORS.length],
-      backgroundColor: COLORS[i % COLORS.length] + '22',
-      tension: 0.3, fill: false, pointRadius: 4,
-    });
-  });
-
-  globalChartInstance = new Chart(ctx, {
-    type: 'line',
-    data: { datasets },
-    options: {
-      responsive: true, maintainAspectRatio: false,
-      scales: {
-        x: { type: 'category', grid: { color: '#F0E8D4' } },
-        y: { title: { display: true, text: 'km/l' }, grid: { color: '#F0E8D4' } }
-      },
-      plugins: { legend: { position: 'bottom' } }
-    }
-  });
+  const PALETTE = ['#5E8C61','#E8864A','#87B9D4','#9B59B6','#E91E8C','#F1C40F','#E74C3C','#1ABC9C'];
+  const datasets = buses.map((bus,i) => {
+    const valid = (entriesMap[bus.licensePlate]||[]).filter(e=>!e.excluded_from_stats&&e.calculatedKmPerLiter!==null);
+    return { label:bus.name, data:valid.map(e=>({x:e.datetime.slice(0,10),y:e.calculatedKmPerLiter})),
+      borderColor:PALETTE[i%PALETTE.length], backgroundColor:PALETTE[i%PALETTE.length]+'22', tension:.3, fill:false, pointRadius:4 };
+  }).filter(d=>d.data.length>0);
+  globalChartInstance = new Chart(ctx, { type:'line', data:{datasets},
+    options:{ responsive:true, maintainAspectRatio:false,
+      scales:{x:{type:'category',grid:{color:'#F0E8D4'}},y:{title:{display:true,text:'km/l'},grid:{color:'#F0E8D4'}}},
+      plugins:{legend:{position:'bottom'}} } });
 }
 
 /* ════════════════════════════════════════════════════
    BUS DETAIL
    ════════════════════════════════════════════════════ */
-
 let detailChartKml = null, detailChartCost = null;
 
-function renderBusDetail(plate) {
-  const bus = getBuses().find(b => b.licensePlate === plate);
-  const container = document.getElementById('bus-detail-content');
-  if (!bus) {
-    container.innerHTML = '<div class="alert alert-error">Bus niet gevonden.</div>';
-    return;
-  }
-  const stats   = getBusStats(plate);
-  const entries = getBusEntries(plate);
+async function renderBusDetail(plate) {
+  showSpinner();
+  const buses = await getBuses();
+  const bus = buses.find(b=>b.licensePlate===plate);
+  const entries = await getBusEntries(plate);
+  hideSpinner();
 
-  const nd = v => v != null ? v : '–';
+  const container = document.getElementById('bus-detail-content');
+  if (!bus) { container.innerHTML='<div class="alert alert-error">Bus niet gevonden.</div>'; return; }
+  const stats = getStats(entries);
+  const nd = v => v!=null?v:'–';
 
   container.innerHTML = `
-    <div style="display:flex;align-items:center;gap:14px;margin-bottom:14px">
+    <div style="display:flex;align-items:center;gap:14px;margin-bottom:14px;flex-wrap:wrap">
       ${camperSVG(bus.iconColor, 64)}
-      <div>
-        <div style="font-family:Nunito;font-weight:900;font-size:1.5rem">${esc(bus.name)}</div>
+      <div style="flex:1"><div style="font-family:Nunito;font-weight:900;font-size:1.5rem">${esc(bus.name)}</div>
         <div style="color:var(--text-muted);font-size:.85rem">${esc(bus.licensePlate)}</div>
-        <span class="fuel-badge">${esc(bus.fuelType)}</span>
-      </div>
-      <div style="margin-left:auto">
-        <button class="btn btn-primary btn-sm" onclick="navigate('tank',{plate:'${esc(plate)}'})">⛽ Tanken</button>
-      </div>
+        <span class="fuel-badge">${esc(bus.fuelType)}</span></div>
+      <button class="btn btn-primary btn-sm" onclick="navigate('tank',{plate:'${esc(plate)}'})">⛽ Tanken</button>
     </div>
-
     <div class="stats-row">
-      <div class="stat-box">
-        <div class="stat-box-label">Gem. km/l</div>
-        <div class="stat-box-val ${stats.avgKmL==null?'nd':''}">${nd(stats.avgKmL)}</div>
-      </div>
-      <div class="stat-box">
-        <div class="stat-box-label">Gem. l/100km</div>
-        <div class="stat-box-val ${stats.avgL100==null?'nd':''}">${nd(stats.avgL100)}</div>
-      </div>
-      <div class="stat-box">
-        <div class="stat-box-label">Gem. €/km</div>
-        <div class="stat-box-val ${stats.avgCostKm==null?'nd':''}">${stats.avgCostKm!=null?'€ '+stats.avgCostKm:'–'}</div>
-      </div>
-      <div class="stat-box">
-        <div class="stat-box-label">Tankbeurten</div>
-        <div class="stat-box-val">${entries.length}</div>
-      </div>
+      <div class="stat-box"><div class="stat-box-label">Gem. km/l</div><div class="stat-box-val ${stats.avgKmL==null?'nd':''}">${nd(stats.avgKmL)}</div></div>
+      <div class="stat-box"><div class="stat-box-label">Gem. l/100km</div><div class="stat-box-val ${stats.avgL100==null?'nd':''}">${nd(stats.avgL100)}</div></div>
+      <div class="stat-box"><div class="stat-box-label">Gem. €/km</div><div class="stat-box-val ${stats.avgCostKm==null?'nd':''}">${stats.avgCostKm!=null?'€ '+stats.avgCostKm:'–'}</div></div>
+      <div class="stat-box"><div class="stat-box-label">Tankbeurten</div><div class="stat-box-val">${entries.length}</div></div>
     </div>
-
-    <div class="card">
-      <div class="section-hdr">📈 Verbruik km/l over tijd</div>
-      <div class="chart-wrap"><canvas id="detailChartKml"></canvas></div>
-    </div>
-
-    <div class="card">
-      <div class="section-hdr">💶 Kosten/km over tijd</div>
-      <div class="chart-wrap"><canvas id="detailChartCost"></canvas></div>
-    </div>
-
+    <div class="card"><div class="section-hdr">📈 Verbruik km/l</div><div class="chart-wrap"><canvas id="detailChartKml"></canvas></div></div>
+    <div class="card"><div class="section-hdr">💶 Kosten/km</div><div class="chart-wrap"><canvas id="detailChartCost"></canvas></div></div>
     <div class="card">
       <div class="section-hdr">📋 Alle tankbeurten</div>
-      ${entries.length === 0
-        ? '<p style="color:var(--text-muted);font-size:.9rem">Nog geen tankbeurten voor deze bus.</p>'
-        : `<div class="table-wrap">${buildEntriesTable(entries, plate)}</div>`
-      }
-    </div>
-  `;
+      ${entries.length===0?'<p style="color:var(--text-muted);font-size:.9rem">Nog geen tankbeurten.</p>'
+        :`<div class="table-wrap">${buildEntriesTable(entries, plate)}</div>`}
+    </div>`;
 
-  // Charts
   setTimeout(() => {
-    const valid = entries.filter(e => !e.excluded_from_stats && e.calculatedKmPerLiter !== null);
+    const valid = entries.filter(e=>!e.excluded_from_stats&&e.calculatedKmPerLiter!==null);
     if (detailChartKml) detailChartKml.destroy();
     if (detailChartCost) detailChartCost.destroy();
-    const chartDefaults = {
-      responsive: true, maintainAspectRatio: false,
-      scales: {
-        x: { type:'category', grid:{color:'#F0E8D4'} },
-        y: { grid:{color:'#F0E8D4'} }
-      },
-      plugins:{ legend:{display:false} }
-    };
-    detailChartKml = new Chart(document.getElementById('detailChartKml'), {
-      type:'line',
-      data:{ datasets:[{ data: valid.map(e=>({x:e.datetime.slice(0,10),y:e.calculatedKmPerLiter})),
-        borderColor:'#5E8C61',backgroundColor:'#5E8C6122',tension:.3,fill:true,pointRadius:4 }] },
-      options:{ ...chartDefaults, scales:{...chartDefaults.scales, y:{...chartDefaults.scales.y, title:{display:true,text:'km/l'}}} }
-    });
-    detailChartCost = new Chart(document.getElementById('detailChartCost'), {
-      type:'line',
-      data:{ datasets:[{ data: valid.map(e=>({x:e.datetime.slice(0,10),y:e.calculatedCostPerKm})),
-        borderColor:'#E8864A',backgroundColor:'#E8864A22',tension:.3,fill:true,pointRadius:4 }] },
-      options:{ ...chartDefaults, scales:{...chartDefaults.scales, y:{...chartDefaults.scales.y, title:{display:true,text:'€/km'}}} }
-    });
+    const base = { responsive:true,maintainAspectRatio:false,scales:{x:{type:'category',grid:{color:'#F0E8D4'}},y:{grid:{color:'#F0E8D4'}}},plugins:{legend:{display:false}} };
+    detailChartKml  = new Chart(document.getElementById('detailChartKml'),  { type:'line', data:{datasets:[{data:valid.map(e=>({x:e.datetime.slice(0,10),y:e.calculatedKmPerLiter})),    borderColor:'#5E8C61',backgroundColor:'#5E8C6122',tension:.3,fill:true,pointRadius:4}]}, options:{...base,scales:{...base.scales,y:{...base.scales.y,title:{display:true,text:'km/l'}}}} });
+    detailChartCost = new Chart(document.getElementById('detailChartCost'), { type:'line', data:{datasets:[{data:valid.map(e=>({x:e.datetime.slice(0,10),y:e.calculatedCostPerKm})), borderColor:'#E8864A',backgroundColor:'#E8864A22',tension:.3,fill:true,pointRadius:4}]}, options:{...base,scales:{...base.scales,y:{...base.scales.y,title:{display:true,text:'€/km'}}}} });
   }, 50);
 }
 
 function buildEntriesTable(entries, plate) {
-  const rows = [...entries].reverse().map(e => {
-    const excl = e.excluded_from_stats;
-    return `<tr class="${excl?'excluded':''}">
-      <td>${formatDate(e.datetime)}</td>
-      <td>${fmt(e.odometer)} km</td>
-      <td>${fmt(e.liters)} L</td>
-      <td>€ ${fmt(e.totalCost)}</td>
-      <td>${e.calculatedKmPerLiter != null ? e.calculatedKmPerLiter : '—'}</td>
-      <td>${e.calculatedCostPerKm != null ? '€ '+e.calculatedCostPerKm : '—'}</td>
+  const rows = [...entries].reverse().map(e => `
+    <tr class="${e.excluded_from_stats?'excluded':''}">
+      <td>${formatDate(e.datetime)}</td><td>${fmt(e.odometer)} km</td><td>${fmt(e.liters)} L</td>
+      <td>€ ${fmt(e.totalCost)}</td><td>${e.calculatedKmPerLiter??'—'}</td>
+      <td>${e.calculatedCostPerKm!=null?'€ '+e.calculatedCostPerKm:'—'}</td>
       <td style="max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(e.note||'')}">${esc(e.note||'—')}</td>
-      <td>${excl
-        ? '<span class="badge badge-excluded">Uitgesloten</span>'
-        : '<span class="badge badge-ok">Meegenomen</span>'}</td>
+      <td>${e.excluded_from_stats?'<span class="badge badge-excluded">Uitgesloten</span>':'<span class="badge badge-ok">Meegenomen</span>'}</td>
       <td>
-        <button class="btn btn-sm btn-secondary" onclick="openEditModal('${e.id}')">✏️</button>
-        <button class="btn btn-sm ${excl?'btn-primary':'btn-danger'}" onclick="toggleExclude('${e.id}','${plate}')">
-          ${excl ? '✅ Meenemen' : '🚫 Uitsluiten'}
-        </button>
+        <button class="btn btn-sm btn-secondary" onclick="openEditModal('${e.id}','${plate}')">✏️</button>
+        <button class="btn btn-sm ${e.excluded_from_stats?'btn-primary':'btn-danger'}" onclick="toggleExclude('${e.id}','${plate}')">
+          ${e.excluded_from_stats?'✅ Meenemen':'🚫 Uitsluiten'}</button>
       </td>
-    </tr>`;
-  }).join('');
-  return `<table>
-    <thead><tr>
-      <th>Datum</th><th>Km-stand</th><th>Liters</th><th>Kosten</th>
-      <th>km/l</th><th>€/km</th><th>Opmerking</th><th>Status</th><th>Acties</th>
-    </tr></thead>
-    <tbody>${rows}</tbody>
-  </table>`;
+    </tr>`).join('');
+  return `<table><thead><tr><th>Datum</th><th>Km-stand</th><th>Liters</th><th>Kosten</th><th>km/l</th><th>€/km</th><th>Opmerking</th><th>Status</th><th>Acties</th></tr></thead><tbody>${rows}</tbody></table>`;
 }
 
-function toggleExclude(id, plate) {
-  const entries = getEntries();
-  const idx = entries.findIndex(e => e.id === id);
-  if (idx === -1) return;
-  entries[idx].excluded_from_stats = !entries[idx].excluded_from_stats;
-  saveEntries(entries);
-  recalcBusEntries(plate);
+async function toggleExclude(id, plate) {
+  showSpinner();
+  const entries = await getBusEntries(plate);
+  const entry = entries.find(e=>e.id===id);
+  if (!entry) { hideSpinner(); return; }
+  entry.excluded_from_stats = !entry.excluded_from_stats;
+  await updateEntry(entry);
+  await recalcAndSave(plate);
+  hideSpinner();
   renderBusDetail(plate);
 }
 
 /* ════════════════════════════════════════════════════
    TANK FORM
    ════════════════════════════════════════════════════ */
-
-// Pending entry waiting for deviation confirmation
 let _pendingEntry = null;
 
-function renderTankForm(plate) {
+async function renderTankForm(plate) {
   _pendingEntry = null;
-  const buses = getBuses();
+  showSpinner();
+  const buses = await getBuses();
+  hideSpinner();
 
-  // Populate select
   const sel = document.getElementById('tank-bus-select');
   sel.innerHTML = '<option value="">— Kies een bus —</option>' +
-    buses.map(b => `<option value="${esc(b.licensePlate)}">${esc(b.name)} (${esc(b.licensePlate)})</option>`).join('');
+    buses.map(b=>`<option value="${esc(b.licensePlate)}">${esc(b.name)} (${esc(b.licensePlate)})</option>`).join('');
 
-  // Clear form
-  ['tank-odometer','tank-liters','tank-cost','tank-note'].forEach(id => document.getElementById(id).value = '');
-  ['err-tank-bus','err-tank-odometer','err-tank-liters','err-tank-cost'].forEach(id => document.getElementById(id).textContent = '');
+  ['tank-odometer','tank-liters','tank-cost','tank-note'].forEach(id=>document.getElementById(id).value='');
+  ['err-tank-bus','err-tank-odometer','err-tank-liters','err-tank-cost'].forEach(id=>document.getElementById(id).textContent='');
   document.getElementById('tank-general-error').style.display = 'none';
   document.getElementById('char-count').textContent = '0';
   document.getElementById('selected-bus-preview').style.display = 'none';
-
-  // Alerts
-  document.getElementById('tank-no-bus-alert').style.display     = 'none';
+  document.getElementById('tank-no-bus-alert').style.display = 'none';
   document.getElementById('tank-unknown-bus-alert').style.display = 'none';
 
   if (plate) {
-    const bus = buses.find(b => b.licensePlate === plate);
-    if (!bus) {
-      document.getElementById('tank-unknown-bus-alert').style.display = 'block';
-    } else {
-      sel.value = plate;
-      showBusPreview(bus);
-    }
+    const bus = buses.find(b=>b.licensePlate===plate);
+    if (!bus) document.getElementById('tank-unknown-bus-alert').style.display = 'block';
+    else { sel.value = plate; showBusPreview(bus); }
   } else {
     document.getElementById('tank-no-bus-alert').style.display = 'block';
   }
-
   sel.onchange = () => {
-    const b = buses.find(b => b.licensePlate === sel.value);
-    if (b) showBusPreview(b); else document.getElementById('selected-bus-preview').style.display = 'none';
+    const b = buses.find(b=>b.licensePlate===sel.value);
+    if (b) showBusPreview(b); else document.getElementById('selected-bus-preview').style.display='none';
   };
 }
 
 function showBusPreview(bus) {
   const el = document.getElementById('selected-bus-preview');
   el.style.display = 'block';
-  el.innerHTML = `<div style="display:flex;align-items:center;gap:10px;background:var(--cream);border-radius:10px;padding:10px 14px;">
-    ${camperSVG(bus.iconColor, 40)}
-    <div>
-      <strong>${esc(bus.name)}</strong>
-      <div style="font-size:.8rem;color:var(--text-muted)">${esc(bus.licensePlate)} · ${esc(bus.fuelType)}</div>
-    </div>
-  </div>`;
+  el.innerHTML = `<div style="display:flex;align-items:center;gap:10px;background:var(--cream);border-radius:10px;padding:10px 14px">
+    ${camperSVG(bus.iconColor,40)}<div><strong>${esc(bus.name)}</strong><div style="font-size:.8rem;color:var(--text-muted)">${esc(bus.licensePlate)} · ${esc(bus.fuelType)}</div></div></div>`;
 }
+function updateCharCount() { document.getElementById('char-count').textContent=document.getElementById('tank-note').value.length; }
 
-function updateCharCount() {
-  document.getElementById('char-count').textContent = document.getElementById('tank-note').value.length;
-}
-
-function saveFuelEntry() {
+async function saveFuelEntry() {
   clearErrors(['err-tank-bus','err-tank-odometer','err-tank-liters','err-tank-cost']);
   document.getElementById('tank-general-error').style.display = 'none';
 
@@ -1102,130 +1031,111 @@ function saveFuelEntry() {
   const note      = document.getElementById('tank-note').value.trim().slice(0,500);
 
   let valid = true;
-  if (!plate) { setError('err-tank-bus', 'Selecteer een bus.'); valid = false; }
-  if (isNaN(odometer) || odometer <= 0) { setError('err-tank-odometer', 'Vul een geldige kilometerstand in.'); valid = false; }
-  if (isNaN(liters) || liters <= 0)     { setError('err-tank-liters', 'Liters moet groter zijn dan 0.'); valid = false; }
-  if (isNaN(totalCost) || totalCost <= 0) { setError('err-tank-cost', 'Bedrag moet groter zijn dan 0.'); valid = false; }
+  if (!plate)                            { setError('err-tank-bus','Selecteer een bus.'); valid=false; }
+  if (isNaN(odometer)||odometer<=0)      { setError('err-tank-odometer','Vul een geldige kilometerstand in.'); valid=false; }
+  if (isNaN(liters)||liters<=0)          { setError('err-tank-liters','Liters moet groter zijn dan 0.'); valid=false; }
+  if (isNaN(totalCost)||totalCost<=0)    { setError('err-tank-cost','Bedrag moet groter zijn dan 0.'); valid=false; }
   if (!valid) return;
 
-  // Validate odometer against last entry (any, including excluded)
-  const busEntries = getBusEntries(plate);
-  const lastEntry  = busEntries.at(-1);
+  showSpinner();
+  const busEntries = await getBusEntries(plate);
+  hideSpinner();
+
+  const lastEntry = busEntries.at(-1);
   if (lastEntry && odometer <= lastEntry.odometer) {
-    setError('err-tank-odometer', `Kilometerstand moet hoger zijn dan de vorige meting (${fmt(lastEntry.odometer)} km).`);
-    return;
+    setError('err-tank-odometer',`Km-stand moet hoger zijn dan vorige meting (${fmt(lastEntry.odometer)} km).`); return;
   }
 
-  // Calculate km/l for deviation check
   let kmPerLiter = null;
   if (lastEntry) {
     const dist = odometer - lastEntry.odometer;
     if (dist > 0 && liters > 0) kmPerLiter = dist / liters;
   }
 
-  // Check deviation
   if (kmPerLiter !== null) {
-    const dev = checkDeviation(plate, kmPerLiter);
+    const dev = checkDeviation(busEntries, kmPerLiter);
     if (dev.deviates) {
       _pendingEntry = { plate, odometer, liters, totalCost, note };
       document.getElementById('deviation-msg').innerHTML =
-        `Deze meting wijkt <strong>${dev.pct}%</strong> af van het gemiddelde verbruik 
-         (gemiddeld ${dev.avgKmL} km/l, nu ${kmPerLiter.toFixed(2)} km/l).<br><br>
-         Mogelijk is er een tankbeurt vergeten of is er een invoerfout gemaakt.
-         Wil je deze meting meenemen in de statistieken?`;
+        `Deze meting wijkt <strong>${dev.pct}%</strong> af van het gemiddelde (gem. ${dev.avgKmL} km/l, nu ${kmPerLiter.toFixed(2)} km/l).<br><br>
+         Mogelijk is er een tankbeurt vergeten of een invoerfout gemaakt.`;
       document.getElementById('deviation-modal').classList.add('open');
       return;
     }
   }
-
-  // No deviation — save directly
-  commitFuelEntry(plate, odometer, liters, totalCost, note, false);
+  await commitFuelEntry(plate, odometer, liters, totalCost, note, false);
 }
 
-function confirmDeviation(excludeFromStats) {
+async function confirmDeviation(excludeFromStats) {
   document.getElementById('deviation-modal').classList.remove('open');
   if (!_pendingEntry) return;
   const { plate, odometer, liters, totalCost, note } = _pendingEntry;
   _pendingEntry = null;
-  commitFuelEntry(plate, odometer, liters, totalCost, note, excludeFromStats);
+  await commitFuelEntry(plate, odometer, liters, totalCost, note, excludeFromStats);
 }
 
-function commitFuelEntry(plate, odometer, liters, totalCost, note, excluded) {
+async function commitFuelEntry(plate, odometer, liters, totalCost, note, excluded) {
+  showSpinner();
   const entry = {
-    id: generateId(),
-    busLicensePlate: plate,
-    odometer,
-    liters,
-    totalCost,
-    note,
-    datetime: new Date().toISOString(),
-    excluded_from_stats: excluded,
-    calculatedDistance: null,
-    calculatedKmPerLiter: null,
-    calculatedLitersPer100Km: null,
-    calculatedCostPerKm: null,
+    id: generateId(), busLicensePlate: plate, odometer, liters, totalCost, note,
+    datetime: new Date().toISOString(), excluded_from_stats: excluded,
+    calculatedDistance: null, calculatedKmPerLiter: null,
+    calculatedLitersPer100Km: null, calculatedCostPerKm: null,
   };
-  const entries = getEntries();
-  entries.push(entry);
-  saveEntries(entries);
-  recalcBusEntries(plate);
+  await insertEntry(entry);
+  await recalcAndSave(plate);
+  hideSpinner();
   navigate('bus-detail', { plate });
 }
 
 /* ════════════════════════════════════════════════════
-   EDIT ENTRY MODAL
+   EDIT ENTRY
    ════════════════════════════════════════════════════ */
-
-function openEditModal(id) {
-  const entries = getEntries();
-  const entry = entries.find(e => e.id === id);
+async function openEditModal(id, plate) {
+  showSpinner();
+  const entries = await getBusEntries(plate);
+  hideSpinner();
+  const entry = entries.find(e=>e.id===id);
   if (!entry) return;
-  document.getElementById('edit-entry-id').value = id;
-  document.getElementById('edit-odometer').value = entry.odometer;
-  document.getElementById('edit-liters').value   = entry.liters;
-  document.getElementById('edit-cost').value     = entry.totalCost;
-  document.getElementById('edit-note').value     = entry.note || '';
+  document.getElementById('edit-entry-id').value    = id;
+  document.getElementById('edit-entry-plate').value = plate;
+  document.getElementById('edit-odometer').value    = entry.odometer;
+  document.getElementById('edit-liters').value      = entry.liters;
+  document.getElementById('edit-cost').value        = entry.totalCost;
+  document.getElementById('edit-note').value        = entry.note||'';
   document.getElementById('edit-general-error').style.display = 'none';
   clearErrors(['err-edit-odometer','err-edit-liters']);
   document.getElementById('edit-modal').classList.add('open');
 }
-
 function closeEditModal() { document.getElementById('edit-modal').classList.remove('open'); }
 
-function saveEditEntry() {
+async function saveEditEntry() {
   clearErrors(['err-edit-odometer','err-edit-liters']);
   const id        = document.getElementById('edit-entry-id').value;
+  const plate     = document.getElementById('edit-entry-plate').value;
   const odometer  = parseFloat(document.getElementById('edit-odometer').value);
   const liters    = parseFloat(document.getElementById('edit-liters').value);
   const totalCost = parseFloat(document.getElementById('edit-cost').value);
   const note      = document.getElementById('edit-note').value.trim().slice(0,500);
 
   let valid = true;
-  if (isNaN(odometer) || odometer <= 0) { setError('err-edit-odometer','Vul een geldige kilometerstand in.'); valid = false; }
-  if (isNaN(liters)   || liters <= 0)   { setError('err-edit-liters','Liters moet groter zijn dan 0.'); valid = false; }
+  if (isNaN(odometer)||odometer<=0) { setError('err-edit-odometer','Vul een geldige kilometerstand in.'); valid=false; }
+  if (isNaN(liters)||liters<=0)     { setError('err-edit-liters','Liters moet groter zijn dan 0.'); valid=false; }
   if (!valid) return;
 
-  const entries = getEntries();
-  const idx = entries.findIndex(e => e.id === id);
-  if (idx === -1) return;
+  showSpinner();
+  const entries = await getBusEntries(plate);
+  const others  = entries.filter(e=>e.id!==id);
+  const prev    = others.filter(e=>e.odometer<odometer).at(-1);
+  const next    = others.find(e=>e.odometer>odometer);
+  if (prev&&odometer<=prev.odometer) { setError('err-edit-odometer',`Moet hoger zijn dan vorige meting (${fmt(prev.odometer)} km).`); hideSpinner(); return; }
+  if (next&&odometer>=next.odometer) { setError('err-edit-odometer',`Moet lager zijn dan volgende meting (${fmt(next.odometer)} km).`); hideSpinner(); return; }
 
-  // Validate odometer: must be between neighbours
-  const plate = entries[idx].busLicensePlate;
-  const busEntries = getBusEntries(plate).filter(e => e.id !== id);
-  const prev = busEntries.filter(e => e.odometer < odometer).at(-1);
-  const next = busEntries.filter(e => e.odometer > odometer)[0];
-  if (prev && odometer <= prev.odometer) {
-    setError('err-edit-odometer', `Kilometerstand moet hoger zijn dan vorige meting (${fmt(prev.odometer)} km).`);
-    return;
-  }
-  if (next && odometer >= next.odometer) {
-    setError('err-edit-odometer', `Kilometerstand moet lager zijn dan volgende meting (${fmt(next.odometer)} km).`);
-    return;
-  }
-
-  entries[idx] = { ...entries[idx], odometer, liters, totalCost, note };
-  saveEntries(entries);
-  recalcBusEntries(plate);
+  const entry = entries.find(e=>e.id===id);
+  Object.assign(entry, { odometer, liters, totalCost, note });
+  await updateEntry(entry);
+  await recalcAndSave(plate);
+  hideSpinner();
   closeEditModal();
   renderBusDetail(plate);
 }
@@ -1233,46 +1143,35 @@ function saveEditEntry() {
 /* ════════════════════════════════════════════════════
    BUS MANAGEMENT
    ════════════════════════════════════════════════════ */
-
 const COLORS = [
-  { label:'Groen',  hex:'#5E8C61' },
-  { label:'Blauw',  hex:'#4A80B8' },
-  { label:'Rood',   hex:'#C0392B' },
-  { label:'Oranje', hex:'#E8864A' },
-  { label:'Geel',   hex:'#D4AC0D' },
-  { label:'Paars',  hex:'#7D3C98' },
-  { label:'Roze',   hex:'#E056A0' },
-  { label:'Beige',  hex:'#C8A96E' },
+  {label:'Groen',hex:'#5E8C61'},{label:'Blauw',hex:'#4A80B8'},{label:'Rood',hex:'#C0392B'},
+  {label:'Oranje',hex:'#E8864A'},{label:'Geel',hex:'#D4AC0D'},{label:'Paars',hex:'#7D3C98'},
+  {label:'Roze',hex:'#E056A0'},{label:'Beige',hex:'#C8A96E'},
 ];
-
-let _editingPlate = null; // null = new bus, else plate being edited
+let _editingPlate = null;
 
 function openBusForm(plate = null) {
   _editingPlate = plate;
   document.getElementById('bus-modal-title').textContent = plate ? 'Bus bewerken' : 'Bus toevoegen';
   clearErrors(['err-bus-plate','err-bus-name','err-bus-fuel','err-bus-color']);
-
-  const swatches = document.getElementById('color-swatches');
-  swatches.innerHTML = COLORS.map(c =>
-    `<div class="swatch" style="background:${c.hex}" title="${c.label}"
-      onclick="selectColor('${c.hex}')"></div>`
-  ).join('');
+  document.getElementById('color-swatches').innerHTML = COLORS.map(c =>
+    `<div class="swatch" style="background:${c.hex}" title="${c.label}" onclick="selectColor('${c.hex}')"></div>`).join('');
 
   if (plate) {
-    const bus = getBuses().find(b => b.licensePlate === plate);
-    if (bus) {
-      document.getElementById('bus-plate').value = bus.licensePlate;
+    supabase.from('buses').select('*').eq('license_plate', plate).single().then(({data}) => {
+      if (!data) return;
+      const bus = mapBus(data);
+      document.getElementById('bus-plate').value    = bus.licensePlate;
       document.getElementById('bus-plate').disabled = true;
       document.getElementById('bus-name').value  = bus.name;
       document.getElementById('bus-fuel').value  = bus.fuelType;
       document.getElementById('bus-color').value = bus.iconColor;
       selectColor(bus.iconColor);
-    }
+    });
   } else {
-    document.getElementById('bus-plate').value    = '';
+    ['bus-plate','bus-name'].forEach(id=>document.getElementById(id).value='');
     document.getElementById('bus-plate').disabled = false;
-    document.getElementById('bus-name').value  = '';
-    document.getElementById('bus-fuel').value  = '';
+    document.getElementById('bus-fuel').value = '';
     document.getElementById('bus-color').value = '';
   }
   document.getElementById('bus-modal').classList.add('open');
@@ -1280,316 +1179,128 @@ function openBusForm(plate = null) {
 
 function selectColor(hex) {
   document.getElementById('bus-color').value = hex;
-  document.querySelectorAll('.swatch').forEach(s => {
-    s.classList.toggle('selected', s.style.background === hex || s.style.backgroundColor === hex);
-  });
+  document.querySelectorAll('.swatch').forEach(s=>s.classList.toggle('selected', s.style.background===hex||s.style.backgroundColor===hex));
 }
+function closeBusModal() { document.getElementById('bus-modal').classList.remove('open'); document.getElementById('bus-plate').disabled=false; }
 
-function closeBusModal() {
-  document.getElementById('bus-modal').classList.remove('open');
-  document.getElementById('bus-plate').disabled = false;
-}
-
-function saveBus() {
+async function saveBus() {
   clearErrors(['err-bus-plate','err-bus-name','err-bus-fuel','err-bus-color']);
   const plate = document.getElementById('bus-plate').value.trim().toUpperCase();
   const name  = document.getElementById('bus-name').value.trim();
   const fuel  = document.getElementById('bus-fuel').value;
   const color = document.getElementById('bus-color').value;
-
-  let valid = true;
-  if (!plate) { setError('err-bus-plate','Vul een kenteken in.'); valid = false; }
-  if (!name)  { setError('err-bus-name', 'Vul een naam in.');    valid = false; }
-  if (!fuel)  { setError('err-bus-fuel', 'Kies een brandstofsoort.'); valid = false; }
-  if (!color) { setError('err-bus-color','Kies een kleur.'); valid = false; }
+  let valid=true;
+  if (!plate) { setError('err-bus-plate','Vul een kenteken in.'); valid=false; }
+  if (!name)  { setError('err-bus-name','Vul een naam in.');      valid=false; }
+  if (!fuel)  { setError('err-bus-fuel','Kies een brandstofsoort.'); valid=false; }
+  if (!color) { setError('err-bus-color','Kies een kleur.'); valid=false; }
   if (!valid) return;
 
-  const buses = getBuses();
-  if (!_editingPlate) {
-    if (buses.find(b => b.licensePlate === plate)) {
-      setError('err-bus-plate','Dit kenteken bestaat al.'); return;
+  showSpinner();
+  try {
+    if (!_editingPlate) {
+      const { data } = await supabase.from('buses').select('license_plate').eq('license_plate', plate).maybeSingle();
+      if (data) { setError('err-bus-plate','Dit kenteken bestaat al.'); hideSpinner(); return; }
     }
-    buses.push({ licensePlate: plate, name, fuelType: fuel, iconColor: color, createdAt: new Date().toISOString() });
-  } else {
-    const idx = buses.findIndex(b => b.licensePlate === _editingPlate);
-    if (idx !== -1) buses[idx] = { ...buses[idx], name, fuelType: fuel, iconColor: color };
-  }
-  saveBuses(buses);
-  closeBusModal();
-  renderBusManagement();
+    await upsertBus({ licensePlate:plate, name, fuelType:fuel, iconColor:color });
+    closeBusModal();
+    renderBusManagement();
+  } catch(e) { setError('err-bus-plate','Opslaan mislukt: '+e.message); }
+  hideSpinner();
 }
 
-function renderBusManagement() {
-  const buses = getBuses();
-  const list  = document.getElementById('buses-list');
-  if (buses.length === 0) {
-    list.innerHTML = `<div class="empty-state card">
-      <div class="empty-state-icon">🚐</div>
-      <div class="empty-state-title">Nog geen bussen</div>
-      <p class="empty-state-text">Voeg je eerste bus toe via de knop hierboven.</p>
-    </div>`;
-    return;
-  }
-  list.innerHTML = buses.map(bus => `
+async function renderBusManagement() {
+  showSpinner(); const buses = await getBuses(); hideSpinner();
+  const list = document.getElementById('buses-list');
+  if (!buses.length) { list.innerHTML=`<div class="card empty-state"><div class="empty-state-icon">🚐</div><div class="empty-state-title">Nog geen bussen</div><p class="empty-state-text">Voeg je eerste bus toe hierboven.</p></div>`; return; }
+  list.innerHTML = buses.map(bus=>`
     <div class="card" style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">
-      ${camperSVG(bus.iconColor, 44)}
-      <div style="flex:1;min-width:120px">
-        <div style="font-family:Nunito;font-weight:900;font-size:1rem">${esc(bus.name)}</div>
-        <div style="font-size:.8rem;color:var(--text-muted)">${esc(bus.licensePlate)} · ${esc(bus.fuelType)}</div>
-      </div>
+      ${camperSVG(bus.iconColor,44)}
+      <div style="flex:1;min-width:120px"><div style="font-family:Nunito;font-weight:900;font-size:1rem">${esc(bus.name)}</div>
+        <div style="font-size:.8rem;color:var(--text-muted)">${esc(bus.licensePlate)} · ${esc(bus.fuelType)}</div></div>
       <button class="btn btn-secondary btn-sm" onclick="openBusForm('${esc(bus.licensePlate)}')">✏️ Bewerken</button>
-    </div>
-  `).join('');
+    </div>`).join('');
 }
 
 /* ════════════════════════════════════════════════════
-   NFC
+   NFC / QR / EXPORT
    ════════════════════════════════════════════════════ */
-
-function renderNFC() {
-  const buses = getBuses();
-  const list  = document.getElementById('nfc-list');
-  if (buses.length === 0) {
-    list.innerHTML = '<div class="alert alert-info">Voeg eerst een bus toe.</div>'; return;
-  }
-  const base = window.location.origin + window.location.pathname;
-  list.innerHTML = buses.map(bus => {
-    const url = `${base}?bus=${encodeURIComponent(bus.licensePlate)}`;
+async function renderNFC() {
+  showSpinner(); const buses=await getBuses(); hideSpinner();
+  const list=document.getElementById('nfc-list');
+  if(!buses.length){list.innerHTML='<div class="alert alert-info">Voeg eerst een bus toe.</div>';return;}
+  const base=window.location.origin+window.location.pathname;
+  list.innerHTML=buses.map(bus=>{
+    const url=`${base}?bus=${encodeURIComponent(bus.licensePlate)}`;
     return `<div class="nfc-card">
-      <div style="display:flex;align-items:center;gap:12px">
-        ${camperSVG(bus.iconColor, 40)}
-        <div>
-          <strong>${esc(bus.name)}</strong>
-          <div style="font-size:.78rem;color:var(--text-muted)">${esc(bus.licensePlate)}</div>
-        </div>
-      </div>
-      <div class="url-box" onclick="copyToClipboard('${url}',this)" title="Klik om te kopiëren">${url}</div>
-      <div style="font-size:.75rem;color:var(--text-muted)">📋 Klik op de URL om te kopiëren</div>
-    </div>`;
-  }).join('');
+      <div style="display:flex;align-items:center;gap:12px">${camperSVG(bus.iconColor,40)}<div><strong>${esc(bus.name)}</strong><div style="font-size:.78rem;color:var(--text-muted)">${esc(bus.licensePlate)}</div></div></div>
+      <div class="url-box" onclick="copyToClipboard('${url}',this)">${url}</div>
+      <div style="font-size:.75rem;color:var(--text-muted)">📋 Klik om te kopiëren</div>
+    </div>`;}).join('');
 }
+function copyToClipboard(text,el){navigator.clipboard.writeText(text).then(()=>{const o=el.textContent;el.textContent='✅ Gekopieerd!';setTimeout(()=>el.textContent=o,1500);});}
 
-function copyToClipboard(text, el) {
-  navigator.clipboard.writeText(text).then(() => {
-    const old = el.textContent;
-    el.textContent = '✅ Gekopieerd!';
-    setTimeout(() => el.textContent = old, 1500);
-  });
-}
-
-/* ════════════════════════════════════════════════════
-   QR CODES
-   ════════════════════════════════════════════════════ */
-
-function renderQR() {
-  const buses = getBuses();
-  const list  = document.getElementById('qr-list');
-  if (buses.length === 0) {
-    list.innerHTML = '<div class="alert alert-info">Voeg eerst een bus toe.</div>'; return;
-  }
-  const base = window.location.origin + window.location.pathname;
-  list.innerHTML = buses.map((bus, i) => `
+async function renderQR() {
+  showSpinner(); const buses=await getBuses(); hideSpinner();
+  const list=document.getElementById('qr-list');
+  if(!buses.length){list.innerHTML='<div class="alert alert-info">Voeg eerst een bus toe.</div>';return;}
+  const base=window.location.origin+window.location.pathname;
+  list.innerHTML=buses.map((bus,i)=>`
     <div class="qr-card">
-      <div style="display:flex;align-items:center;gap:12px">
-        ${camperSVG(bus.iconColor, 40)}
-        <div>
-          <strong>${esc(bus.name)}</strong>
-          <div style="font-size:.78rem;color:var(--text-muted)">${esc(bus.licensePlate)}</div>
-        </div>
-      </div>
+      <div style="display:flex;align-items:center;gap:12px">${camperSVG(bus.iconColor,40)}<div><strong>${esc(bus.name)}</strong><div style="font-size:.78rem;color:var(--text-muted)">${esc(bus.licensePlate)}</div></div></div>
       <div id="qr-wrap-${i}" style="background:#fff;display:inline-block;padding:10px;border-radius:8px;border:2px solid var(--sand-dark)"></div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap">
-        <button class="btn btn-primary btn-sm" onclick="downloadQR(${i},'${esc(bus.name)}')">⬇️ Download QR</button>
-      </div>
-    </div>
-  `).join('');
+      <button class="btn btn-primary btn-sm" onclick="downloadQR(${i},'${esc(bus.name)}')">⬇️ Download QR</button>
+    </div>`).join('');
+  setTimeout(()=>buses.forEach((bus,i)=>{
+    const url=`${base}?bus=${encodeURIComponent(bus.licensePlate)}`;
+    const el=document.getElementById('qr-wrap-'+i);
+    if(el) new QRCode(el,{text:url,width:160,height:160,correctLevel:QRCode.CorrectLevel.M});
+  }),50);
+}
+function downloadQR(idx,name){const wrap=document.getElementById('qr-wrap-'+idx);const img=wrap?.querySelector('img');if(!img)return;const a=document.createElement('a');a.href=img.src;a.download='qr-'+name.replace(/\s+/g,'-')+'.png';a.click();}
 
-  // Generate QR codes after DOM is ready
-  setTimeout(() => {
-    buses.forEach((bus, i) => {
-      const url = `${base}?bus=${encodeURIComponent(bus.licensePlate)}`;
-      const el = document.getElementById('qr-wrap-' + i);
-      if (el) new QRCode(el, { text: url, width: 160, height: 160, correctLevel: QRCode.CorrectLevel.M });
-    });
-  }, 50);
+async function renderExport() {
+  showSpinner(); const buses=await getBuses(); hideSpinner();
+  const list=document.getElementById('export-list');
+  if(!buses.length){list.innerHTML='<div class="alert alert-info">Voeg eerst een bus toe.</div>';return;}
+  list.innerHTML=`
+    <div class="card"><div class="section-hdr">📥 Per bus</div>
+      ${buses.map(bus=>`<div style="display:flex;align-items:center;gap:12px;margin-bottom:10px;flex-wrap:wrap">
+        ${camperSVG(bus.iconColor,36)}<span style="font-weight:700;flex:1">${esc(bus.name)} <small style="color:var(--text-muted)">${esc(bus.licensePlate)}</small></span>
+        <button class="btn btn-primary btn-sm" onclick="exportBusCSV('${esc(bus.licensePlate)}')">📊 Download CSV</button>
+      </div>`).join('')}</div>
+    <div class="card"><div class="section-hdr">📥 Alle bussen</div>
+      <button class="btn btn-primary" onclick="exportAllCSV()">📊 Download alle bussen</button></div>`;
 }
 
-function downloadQR(idx, name) {
-  const wrap = document.getElementById('qr-wrap-' + idx);
-  const img  = wrap ? wrap.querySelector('img') : null;
-  if (!img) return;
-  const a = document.createElement('a');
-  a.href = img.src;
-  a.download = 'qr-' + name.replace(/\s+/g,'-') + '.png';
-  a.click();
+const CSV_HDR=['Kenteken','Naam','Brandstof','Datum/tijd','Km-stand','Liters','Totaalbedrag','Opmerking','Uitgesloten','Afstand','km/l','l/100km','€/km'];
+function rowsToCSV(rows){return '﻿'+[CSV_HDR.join(';'),...rows.map(r=>r.map(v=>`"${v}"`).join(';'))].join('
+');}
+function downloadCSV(csv,fn){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));a.download=fn;a.click();}
+
+async function exportBusCSV(plate) {
+  showSpinner();
+  const buses=await getBuses(); const bus=buses.find(b=>b.licensePlate===plate);
+  const entries=await getBusEntries(plate); hideSpinner();
+  const rows=entries.map(e=>[plate,bus?.name??'',bus?.fuelType??'',e.datetime,e.odometer,e.liters,e.totalCost,(e.note||'').replace(/"/g,'""'),e.excluded_from_stats?'Ja':'Nee',e.calculatedDistance??'',e.calculatedKmPerLiter??'',e.calculatedLitersPer100Km??'',e.calculatedCostPerKm??'']);
+  downloadCSV(rowsToCSV(rows),`tanklog-${plate}.csv`);
+}
+async function exportAllCSV() {
+  showSpinner(); const buses=await getBuses(); const allRows=[];
+  for(const bus of buses){const entries=await getBusEntries(bus.licensePlate);entries.forEach(e=>allRows.push([bus.licensePlate,bus.name,bus.fuelType,e.datetime,e.odometer,e.liters,e.totalCost,(e.note||'').replace(/"/g,'""'),e.excluded_from_stats?'Ja':'Nee',e.calculatedDistance??'',e.calculatedKmPerLiter??'',e.calculatedLitersPer100Km??'',e.calculatedCostPerKm??'']));}
+  hideSpinner(); downloadCSV(rowsToCSV(allRows),'tanklog-alle-bussen.csv');
 }
 
-/* ════════════════════════════════════════════════════
-   EXPORT
-   ════════════════════════════════════════════════════ */
+/* HELPERS */
+function esc(str){return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+function fmt(num){return num==null?'—':Number(num).toLocaleString('nl-NL');}
+function formatDate(iso){if(!iso)return '—';const d=new Date(iso);return d.toLocaleDateString('nl-NL',{day:'2-digit',month:'short',year:'numeric'})+' '+d.toLocaleTimeString('nl-NL',{hour:'2-digit',minute:'2-digit'});}
+function setError(id,msg){document.getElementById(id).textContent=msg;}
+function clearErrors(ids){ids.forEach(id=>document.getElementById(id).textContent='');}
+document.querySelectorAll('.modal-overlay').forEach(o=>o.addEventListener('click',e=>{if(e.target===o)o.classList.remove('open');}));
 
-function renderExport() {
-  const buses = getBuses();
-  const list  = document.getElementById('export-list');
-  if (buses.length === 0) {
-    list.innerHTML = '<div class="alert alert-info">Voeg eerst een bus toe.</div>'; return;
-  }
-  list.innerHTML = `
-    <div class="card">
-      <div class="section-hdr">📥 Exporteer per bus</div>
-      ${buses.map(bus => `
-        <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px;flex-wrap:wrap">
-          ${camperSVG(bus.iconColor, 36)}
-          <span style="font-weight:700;flex:1">${esc(bus.name)} <small style="color:var(--text-muted)">${esc(bus.licensePlate)}</small></span>
-          <button class="btn btn-primary btn-sm" onclick="exportBusCSV('${esc(bus.licensePlate)}')">📊 Download CSV</button>
-        </div>
-      `).join('')}
-    </div>
-    <div class="card">
-      <div class="section-hdr">📥 Exporteer alle bussen</div>
-      <button class="btn btn-primary" onclick="exportAllCSV()">📊 Download alle bussen</button>
-    </div>
-  `;
-}
-
-function buildCSVRows(plate) {
-  const bus     = getBuses().find(b => b.licensePlate === plate);
-  if (!bus) return [];
-  const entries = getBusEntries(plate);
-  return entries.map(e => [
-    plate,
-    bus.name,
-    bus.fuelType,
-    e.datetime,
-    e.odometer,
-    e.liters,
-    e.totalCost,
-    (e.note || '').replace(/"/g,'""'),
-    e.excluded_from_stats ? 'Ja' : 'Nee',
-    e.calculatedDistance ?? '',
-    e.calculatedKmPerLiter ?? '',
-    e.calculatedLitersPer100Km ?? '',
-    e.calculatedCostPerKm ?? '',
-  ]);
-}
-
-const CSV_HEADER = ['Kenteken','Naam','Brandstof','Datum/tijd','Km-stand','Liters',
-  'Totaalbedrag','Opmerking','Uitgesloten','Afstand','km/l','l/100km','€/km'];
-
-function rowsToCSV(rows) {
-  const lines = [CSV_HEADER.join(';'), ...rows.map(r => r.map(v => `"${v}"`).join(';'))];
-  return '\uFEFF' + lines.join('\r\n'); // BOM for Excel
-}
-
-function downloadCSV(csv, filename) {
-  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
-  const url  = URL.createObjectURL(blob);
-  const a    = document.createElement('a');
-  a.href = url; a.download = filename; a.click();
-  URL.revokeObjectURL(url);
-}
-
-function exportBusCSV(plate) {
-  const rows = buildCSVRows(plate);
-  downloadCSV(rowsToCSV(rows), `tanklog-${plate}.csv`);
-}
-
-function exportAllCSV() {
-  const buses = getBuses();
-  const rows  = buses.flatMap(b => buildCSVRows(b.licensePlate));
-  downloadCSV(rowsToCSV(rows), 'tanklog-alle-bussen.csv');
-}
-
-/* ════════════════════════════════════════════════════
-   HELPERS
-   ════════════════════════════════════════════════════ */
-
-function esc(str) {
-  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-}
-function fmt(num) {
-  if (num == null) return '—';
-  return Number(num).toLocaleString('nl-NL');
-}
-function formatDate(iso) {
-  if (!iso) return '—';
-  const d = new Date(iso);
-  return d.toLocaleDateString('nl-NL', { day:'2-digit', month:'short', year:'numeric' }) +
-    ' ' + d.toLocaleTimeString('nl-NL', { hour:'2-digit', minute:'2-digit' });
-}
-function setError(id, msg) { document.getElementById(id).textContent = msg; }
-function clearErrors(ids)  { ids.forEach(id => document.getElementById(id).textContent = ''); }
-
-/* Close modals on overlay click */
-document.querySelectorAll('.modal-overlay').forEach(overlay => {
-  overlay.addEventListener('click', e => { if (e.target === overlay) overlay.classList.remove('open'); });
-});
-
-/* ════════════════════════════════════════════════════
-   DUMMY DATA
-   ════════════════════════════════════════════════════ */
-
-function loadDummyData() {
-  if (getBuses().length > 0) return; // Already initialized
-
-  const buses = [
-    { licensePlate:'V-123-AB', name:'SummerVan', fuelType:'Diesel',     iconColor:'#5E8C61', createdAt:'2024-01-01T08:00:00Z' },
-    { licensePlate:'V-456-CD', name:'Sunny',     fuelType:'Benzine 95', iconColor:'#E8864A', createdAt:'2024-01-01T08:00:00Z' },
-    { licensePlate:'V-789-EF', name:'BosBus',    fuelType:'LPG',        iconColor:'#4A80B8', createdAt:'2024-01-01T08:00:00Z' },
-  ];
-  saveBuses(buses);
-
-  const now = Date.now();
-  const day = 86400000;
-
-  const entries = [
-    // SummerVan – 6 tankbeurten
-    { id:'d1', busLicensePlate:'V-123-AB', odometer:100000, liters:55, totalCost:105, note:'Eerste meting', datetime:new Date(now-60*day).toISOString(), excluded_from_stats:false },
-    { id:'d2', busLicensePlate:'V-123-AB', odometer:100620, liters:52, totalCost:99,  note:'',              datetime:new Date(now-48*day).toISOString(), excluded_from_stats:false },
-    { id:'d3', busLicensePlate:'V-123-AB', odometer:101200, liters:100,totalCost:190, note:'Vergeten tankbeurt', datetime:new Date(now-36*day).toISOString(), excluded_from_stats:true  },
-    { id:'d4', busLicensePlate:'V-123-AB', odometer:101820, liters:54, totalCost:103, note:'',              datetime:new Date(now-24*day).toISOString(), excluded_from_stats:false },
-    { id:'d5', busLicensePlate:'V-123-AB', odometer:102450, liters:53, totalCost:101, note:'Snelweg rit',   datetime:new Date(now-12*day).toISOString(), excluded_from_stats:false },
-    { id:'d6', busLicensePlate:'V-123-AB', odometer:103080, liters:52, totalCost:99,  note:'',              datetime:new Date(now-2*day).toISOString(),  excluded_from_stats:false },
-
-    // Sunny – 5 tankbeurten
-    { id:'d7', busLicensePlate:'V-456-CD', odometer:50000,  liters:40, totalCost:80,  note:'Start',         datetime:new Date(now-55*day).toISOString(), excluded_from_stats:false },
-    { id:'d8', busLicensePlate:'V-456-CD', odometer:50480,  liters:39, totalCost:78,  note:'',              datetime:new Date(now-44*day).toISOString(), excluded_from_stats:false },
-    { id:'d9', busLicensePlate:'V-456-CD', odometer:50960,  liters:38, totalCost:76,  note:'',              datetime:new Date(now-33*day).toISOString(), excluded_from_stats:false },
-    { id:'d10',busLicensePlate:'V-456-CD', odometer:51430,  liters:40, totalCost:80,  note:'',              datetime:new Date(now-20*day).toISOString(), excluded_from_stats:false },
-    { id:'d11',busLicensePlate:'V-456-CD', odometer:51900,  liters:38, totalCost:77,  note:'',              datetime:new Date(now-8*day).toISOString(),  excluded_from_stats:false },
-
-    // BosBus – 4 tankbeurten
-    { id:'d12',busLicensePlate:'V-789-EF', odometer:80000,  liters:60, totalCost:70,  note:'LPG voordelig', datetime:new Date(now-50*day).toISOString(), excluded_from_stats:false },
-    { id:'d13',busLicensePlate:'V-789-EF', odometer:80700,  liters:62, totalCost:72,  note:'',              datetime:new Date(now-38*day).toISOString(), excluded_from_stats:false },
-    { id:'d14',busLicensePlate:'V-789-EF', odometer:81400,  liters:61, totalCost:71,  note:'',              datetime:new Date(now-26*day).toISOString(), excluded_from_stats:false },
-    { id:'d15',busLicensePlate:'V-789-EF', odometer:82100,  liters:60, totalCost:70,  note:'',              datetime:new Date(now-10*day).toISOString(), excluded_from_stats:false },
-  ];
-  saveEntries(entries);
-
-  // Recalc all
-  ['V-123-AB','V-456-CD','V-789-EF'].forEach(p => recalcBusEntries(p));
-}
-</script>
-
-<!-- PWA manifest inline as link tag (create manifest.json separately for production) -->
-<script>
-// Inject a minimal PWA manifest dynamically
-const manifest = {
-  name: 'TankLog – Kampeerbusjes',
-  short_name: 'TankLog',
-  description: 'Tankregistratie voor bedrijfsbusjes',
-  start_url: './',
-  display: 'standalone',
-  background_color: '#F5EDD8',
-  theme_color: '#5E8C61',
-  icons: [
-    { src: 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y=".9em" font-size="90">🚐</text></svg>', sizes: '192x192', type: 'image/svg+xml' }
-  ]
-};
-const blob = new Blob([JSON.stringify(manifest)], {type:'application/manifest+json'});
-const link = document.createElement('link');
-link.rel = 'manifest'; link.href = URL.createObjectURL(blob);
-document.head.appendChild(link);
+// PWA
+const _ml=document.createElement('link');_ml.rel='manifest';_ml.href=URL.createObjectURL(new Blob([JSON.stringify({name:'TankLog',short_name:'TankLog',start_url:'./',display:'standalone',background_color:'#F5EDD8',theme_color:'#5E8C61'})],{type:'application/manifest+json'}));document.head.appendChild(_ml);
 </script>
 </body>
 </html>
