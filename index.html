@@ -11,7 +11,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&family=Nunito+Sans:wght@400;600&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
 <style>
   :root {
     --sand: #F5EDD8;
@@ -1274,8 +1274,7 @@ async function renderExport() {
 }
 
 const CSV_HDR=['Kenteken','Naam','Brandstof','Datum/tijd','Km-stand','Liters','Totaalbedrag','Opmerking','Uitgesloten','Afstand','km/l','l/100km','€/km'];
-function rowsToCSV(rows){return '﻿'+[CSV_HDR.join(';'),...rows.map(r=>r.map(v=>`"${v}"`).join(';'))].join('
-');}
+function rowsToCSV(rows){return '\uFEFF'+[CSV_HDR.join(';'),...rows.map(r=>r.map(v=>`"${v}"`).join(';'))].join('\r\n');}
 function downloadCSV(csv,fn){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));a.download=fn;a.click();}
 
 async function exportBusCSV(plate) {
