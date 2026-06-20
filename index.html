@@ -1,0 +1,1595 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<meta name="theme-color" content="#5E8C61">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="TankLog">
+<title>🚐 TankLog – Kampeerbusje Tankregistratie</title>
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&family=Nunito+Sans:wght@400;600&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+<style>
+  :root {
+    --sand: #F5EDD8;
+    --sand-dark: #EAD9B8;
+    --cream: #FBF7EF;
+    --moss: #5E8C61;
+    --moss-dark: #3F6B42;
+    --moss-light: #A8C5A0;
+    --sky: #87B9D4;
+    --sky-light: #C8E4F0;
+    --orange: #E8864A;
+    --orange-light: #F5C4A0;
+    --red: #D45A5A;
+    --red-light: #F0C4C4;
+    --text: #3A3020;
+    --text-muted: #7A6B52;
+    --white: #FFFFFF;
+    --radius: 16px;
+    --radius-sm: 10px;
+    --shadow: 0 2px 12px rgba(94,140,97,0.13);
+    --shadow-lg: 0 6px 28px rgba(94,140,97,0.18);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Nunito Sans', sans-serif;
+    background: var(--sand);
+    color: var(--text);
+    min-height: 100vh;
+    font-size: 15px;
+    line-height: 1.5;
+  }
+
+  /* ──── NAV ──── */
+  .topbar {
+    background: var(--white);
+    border-bottom: 2px solid var(--sand-dark);
+    position: sticky; top: 0; z-index: 100;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+  }
+  .topbar-inner {
+    max-width: 900px; margin: 0 auto;
+    display: flex; align-items: center;
+    padding: 10px 16px; gap: 8px;
+  }
+  .topbar-logo {
+    font-family: 'Nunito', sans-serif;
+    font-weight: 900; font-size: 1.25rem;
+    color: var(--moss-dark); text-decoration: none;
+    display: flex; align-items: center; gap: 6px;
+    margin-right: auto;
+  }
+  .nav-links {
+    display: flex; gap: 4px; flex-wrap: wrap;
+  }
+  .nav-btn {
+    background: none; border: none;
+    font-family: 'Nunito', sans-serif; font-weight: 700;
+    font-size: 0.82rem; padding: 6px 10px; border-radius: 8px;
+    cursor: pointer; color: var(--text-muted);
+    transition: background .15s, color .15s;
+  }
+  .nav-btn:hover, .nav-btn.active {
+    background: var(--moss-light); color: var(--moss-dark);
+  }
+
+  /* ──── LAYOUT ──── */
+  .page { display: none; }
+  .page.active { display: block; }
+  .container {
+    max-width: 900px; margin: 0 auto;
+    padding: 20px 16px 40px;
+  }
+  .page-title {
+    font-family: 'Nunito', sans-serif;
+    font-weight: 900; font-size: 1.6rem;
+    color: var(--moss-dark); margin-bottom: 20px;
+    display: flex; align-items: center; gap: 8px;
+  }
+
+  /* ──── CARDS ──── */
+  .card {
+    background: var(--white); border-radius: var(--radius);
+    box-shadow: var(--shadow); padding: 18px;
+    margin-bottom: 16px;
+  }
+
+  /* ──── BUS CARD ──── */
+  .bus-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(270px, 1fr));
+    gap: 16px;
+  }
+  .bus-card {
+    background: var(--white);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 18px;
+    display: flex; flex-direction: column; gap: 10px;
+    border-top: 4px solid var(--moss);
+    transition: box-shadow .2s;
+  }
+  .bus-card:hover { box-shadow: var(--shadow-lg); }
+  .bus-card-header {
+    display: flex; align-items: center; gap: 12px;
+  }
+  .bus-icon {
+    width: 52px; height: 52px; flex-shrink: 0;
+  }
+  .bus-card-name {
+    font-family: 'Nunito', sans-serif;
+    font-weight: 900; font-size: 1.15rem;
+    color: var(--text);
+  }
+  .bus-card-plate {
+    font-size: 0.78rem; color: var(--text-muted);
+    font-weight: 600; letter-spacing: .03em;
+  }
+  .bus-stats {
+    display: grid; grid-template-columns: 1fr 1fr;
+    gap: 6px;
+  }
+  .bus-stat {
+    background: var(--cream); border-radius: 8px;
+    padding: 6px 10px;
+  }
+  .bus-stat-label {
+    font-size: 0.7rem; color: var(--text-muted);
+    font-weight: 600; text-transform: uppercase; letter-spacing: .04em;
+  }
+  .bus-stat-value {
+    font-family: 'Nunito', sans-serif;
+    font-weight: 800; font-size: 1rem; color: var(--moss-dark);
+  }
+  .bus-stat-value.muted { color: var(--text-muted); font-size: .85rem; }
+  .bus-card-actions {
+    display: flex; gap: 8px; margin-top: 4px;
+  }
+
+  /* ──── BUTTONS ──── */
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center;
+    gap: 6px; padding: 10px 18px; border-radius: var(--radius-sm);
+    font-family: 'Nunito', sans-serif; font-weight: 800;
+    font-size: 0.92rem; cursor: pointer; border: 2px solid transparent;
+    transition: all .15s; text-decoration: none;
+  }
+  .btn-primary {
+    background: var(--moss); color: #fff; border-color: var(--moss);
+  }
+  .btn-primary:hover { background: var(--moss-dark); border-color: var(--moss-dark); }
+  .btn-secondary {
+    background: var(--sand); color: var(--text); border-color: var(--sand-dark);
+  }
+  .btn-secondary:hover { background: var(--sand-dark); }
+  .btn-danger { background: var(--red-light); color: var(--red); border-color: var(--red-light); }
+  .btn-danger:hover { background: var(--red); color: #fff; }
+  .btn-orange { background: var(--orange); color: #fff; border-color: var(--orange); }
+  .btn-outline {
+    background: transparent; color: var(--moss);
+    border-color: var(--moss);
+  }
+  .btn-outline:hover { background: var(--moss); color: #fff; }
+  .btn-sm { padding: 6px 12px; font-size: 0.8rem; border-radius: 7px; }
+  .btn-full { width: 100%; }
+  .btn:disabled { opacity: .45; cursor: not-allowed; }
+
+  /* ──── FORMS ──── */
+  .form-group { margin-bottom: 16px; }
+  .form-label {
+    display: block; font-weight: 700; font-size: 0.85rem;
+    color: var(--text-muted); margin-bottom: 6px; text-transform: uppercase;
+    letter-spacing: .04em;
+  }
+  .form-input, .form-select, .form-textarea {
+    width: 100%; padding: 11px 14px; border-radius: var(--radius-sm);
+    border: 2px solid var(--sand-dark); background: var(--cream);
+    font-family: 'Nunito Sans', sans-serif; font-size: 1rem; color: var(--text);
+    transition: border .15s;
+    -webkit-appearance: none;
+  }
+  .form-input:focus, .form-select:focus, .form-textarea:focus {
+    outline: none; border-color: var(--moss);
+    background: var(--white);
+  }
+  .form-input.error, .form-select.error, .form-textarea.error {
+    border-color: var(--red);
+  }
+  .form-textarea { resize: vertical; min-height: 80px; }
+  .char-count { font-size: .75rem; color: var(--text-muted); text-align: right; margin-top: 3px; }
+  .error-msg {
+    font-size: .8rem; color: var(--red); margin-top: 4px;
+    font-weight: 700;
+  }
+
+  /* ──── COLOR SWATCHES ──── */
+  .swatch-grid {
+    display: flex; flex-wrap: wrap; gap: 10px; margin-top: 4px;
+  }
+  .swatch {
+    width: 36px; height: 36px; border-radius: 50%;
+    cursor: pointer; border: 3px solid transparent;
+    transition: transform .15s, border .15s;
+  }
+  .swatch:hover { transform: scale(1.15); }
+  .swatch.selected { border-color: var(--text); transform: scale(1.15); }
+
+  /* ──── ALERTS ──── */
+  .alert {
+    border-radius: var(--radius-sm); padding: 14px 16px;
+    margin-bottom: 16px; font-weight: 600;
+    display: flex; align-items: flex-start; gap: 10px;
+  }
+  .alert-warning { background: #FFF4E8; border-left: 4px solid var(--orange); color: #7A4A10; }
+  .alert-error   { background: var(--red-light); border-left: 4px solid var(--red); color: #7A1010; }
+  .alert-success { background: #EBF5EB; border-left: 4px solid var(--moss); color: var(--moss-dark); }
+  .alert-info    { background: var(--sky-light); border-left: 4px solid var(--sky); color: #1A4A6A; }
+
+  /* ──── TABLE ──── */
+  .table-wrap { overflow-x: auto; border-radius: var(--radius-sm); }
+  table { width: 100%; border-collapse: collapse; font-size: .84rem; min-width: 700px; }
+  th {
+    background: var(--sand); color: var(--text-muted);
+    font-weight: 800; text-transform: uppercase;
+    font-size: .72rem; letter-spacing: .04em;
+    padding: 10px 12px; text-align: left;
+  }
+  td { padding: 10px 12px; border-bottom: 1px solid var(--sand); vertical-align: middle; }
+  tr:last-child td { border-bottom: none; }
+  tr.excluded td { opacity: .55; }
+  .badge {
+    display: inline-block; padding: 2px 8px; border-radius: 20px;
+    font-size: .7rem; font-weight: 800; letter-spacing: .04em;
+  }
+  .badge-excluded { background: #E0E0E0; color: #666; }
+  .badge-ok { background: #EBF5EB; color: var(--moss-dark); }
+  .badge-warn { background: #FFF4E8; color: #995500; }
+
+  /* ──── MODAL ──── */
+  .modal-overlay {
+    display: none; position: fixed; inset: 0;
+    background: rgba(58,48,32,.45); z-index: 200;
+    align-items: center; justify-content: center; padding: 16px;
+  }
+  .modal-overlay.open { display: flex; }
+  .modal {
+    background: var(--white); border-radius: var(--radius);
+    padding: 24px; max-width: 480px; width: 100%;
+    box-shadow: var(--shadow-lg); max-height: 90vh; overflow-y: auto;
+  }
+  .modal-title {
+    font-family: 'Nunito', sans-serif; font-weight: 900;
+    font-size: 1.2rem; margin-bottom: 16px; color: var(--moss-dark);
+  }
+
+  /* ──── CHART ──── */
+  .chart-wrap { position: relative; height: 200px; margin-top: 8px; }
+
+  /* ──── DETAIL ──── */
+  .detail-meta {
+    display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px;
+  }
+  .detail-chip {
+    background: var(--cream); border-radius: 20px;
+    padding: 4px 12px; font-size: .82rem; font-weight: 700;
+    color: var(--text-muted); border: 1.5px solid var(--sand-dark);
+  }
+  .stats-row {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: 10px; margin-bottom: 16px;
+  }
+  .stat-box {
+    background: var(--cream); border-radius: var(--radius-sm);
+    padding: 12px 14px; text-align: center;
+  }
+  .stat-box-label { font-size: .7rem; color: var(--text-muted); font-weight: 700;
+    text-transform: uppercase; letter-spacing: .04em; margin-bottom: 4px; }
+  .stat-box-val {
+    font-family: 'Nunito', sans-serif;
+    font-weight: 900; font-size: 1.3rem; color: var(--moss-dark);
+  }
+  .stat-box-val.nd { color: var(--text-muted); font-size: .9rem; }
+
+  /* ──── NFC / QR ──── */
+  .nfc-card, .qr-card {
+    background: var(--white); border-radius: var(--radius);
+    box-shadow: var(--shadow); padding: 18px; margin-bottom: 14px;
+    display: flex; flex-direction: column; gap: 10px;
+  }
+  .url-box {
+    background: var(--cream); border: 2px dashed var(--sand-dark);
+    border-radius: 8px; padding: 10px 14px;
+    font-family: monospace; font-size: .88rem;
+    word-break: break-all; color: var(--moss-dark); font-weight: 700;
+    cursor: pointer; transition: background .15s;
+  }
+  .url-box:hover { background: var(--moss-light); }
+  #qr-container > div { display: inline-block; margin: 4px 0; }
+
+  /* ──── EMPTY STATE ──── */
+  .empty-state {
+    text-align: center; padding: 48px 20px;
+  }
+  .empty-state-icon { font-size: 3rem; margin-bottom: 12px; }
+  .empty-state-title {
+    font-family: 'Nunito', sans-serif; font-weight: 900;
+    font-size: 1.3rem; color: var(--moss-dark); margin-bottom: 6px;
+  }
+  .empty-state-text { color: var(--text-muted); margin-bottom: 20px; }
+
+  /* ──── BACK LINK ──── */
+  .back-link {
+    display: inline-flex; align-items: center; gap: 6px;
+    color: var(--moss); font-weight: 700; font-size: .88rem;
+    cursor: pointer; margin-bottom: 16px; text-decoration: none;
+  }
+  .back-link:hover { color: var(--moss-dark); }
+
+  /* ──── FUEL TYPE BADGE ──── */
+  .fuel-badge {
+    font-size: .72rem; font-weight: 800;
+    background: var(--sky-light); color: #1A4A6A;
+    border-radius: 20px; padding: 2px 9px;
+    border: 1px solid var(--sky);
+  }
+
+  /* ──── SECTION HEADER ──── */
+  .section-hdr {
+    font-family: 'Nunito', sans-serif; font-weight: 800;
+    font-size: 1rem; color: var(--moss-dark);
+    margin-bottom: 10px; padding-bottom: 6px;
+    border-bottom: 2px solid var(--sand-dark);
+    display: flex; align-items: center; gap: 6px;
+  }
+
+  /* ──── DIVIDER ──── */
+  hr { border: none; border-top: 2px solid var(--sand-dark); margin: 20px 0; }
+
+  /* ──── GLOBAL CHART SECTION ──── */
+  .global-chart-card {
+    background: var(--white); border-radius: var(--radius);
+    box-shadow: var(--shadow); padding: 18px; margin-bottom: 20px;
+  }
+  .global-chart-wrap { position: relative; height: 240px; }
+
+  /* ──── RESPONSIVE ──── */
+  @media(max-width:600px) {
+    .topbar-inner { flex-wrap: wrap; }
+    .nav-links { gap: 2px; }
+    .nav-btn { font-size: .75rem; padding: 5px 8px; }
+    .page-title { font-size: 1.3rem; }
+    .stats-row { grid-template-columns: 1fr 1fr; }
+    .bus-card-actions { flex-direction: column; }
+  }
+</style>
+</head>
+<body>
+
+<!-- TOP BAR -->
+<nav class="topbar">
+  <div class="topbar-inner">
+    <a class="topbar-logo" href="#" onclick="navigate('dashboard')">🚐 TankLog</a>
+    <div class="nav-links">
+      <button class="nav-btn" onclick="navigate('dashboard')" id="nav-dashboard">🏕️ Dashboard</button>
+      <button class="nav-btn" onclick="navigate('tank')" id="nav-tank">⛽ Tanken</button>
+      <button class="nav-btn" onclick="navigate('buses')" id="nav-buses">🔧 Bussen</button>
+      <button class="nav-btn" onclick="navigate('nfc')" id="nav-nfc">📡 NFC</button>
+      <button class="nav-btn" onclick="navigate('qr')" id="nav-qr">📱 QR</button>
+      <button class="nav-btn" onclick="navigate('export')" id="nav-export">📊 Export</button>
+    </div>
+  </div>
+</nav>
+
+<!-- ═══════════════════════ DASHBOARD ═══════════════════════ -->
+<div class="page" id="page-dashboard">
+  <div class="container">
+    <div class="page-title">🏕️ Dashboard</div>
+
+    <div id="dashboard-empty" class="card empty-state" style="display:none">
+      <div class="empty-state-icon">🚐</div>
+      <div class="empty-state-title">Nog geen bussen</div>
+      <p class="empty-state-text">Voeg je eerste bus toe om te beginnen.</p>
+      <button class="btn btn-primary" onclick="navigate('buses')">+ Bus toevoegen</button>
+    </div>
+
+    <!-- Global chart -->
+    <div class="global-chart-card" id="global-chart-card" style="display:none">
+      <div class="section-hdr">📈 Verbruikshistorie alle bussen (km/l)</div>
+      <div class="global-chart-wrap"><canvas id="globalChart"></canvas></div>
+    </div>
+
+    <div class="bus-grid" id="bus-grid"></div>
+  </div>
+</div>
+
+<!-- ═══════════════════════ TANK FORM ═══════════════════════ -->
+<div class="page" id="page-tank">
+  <div class="container">
+    <a class="back-link" onclick="navigate('dashboard')">← Terug naar dashboard</a>
+    <div class="page-title">⛽ Nieuwe tankbeurt</div>
+
+    <div id="tank-no-bus-alert" class="alert alert-info" style="display:none">
+      ℹ️ Geen bus gevonden via URL. Selecteer handmatig een bus.
+    </div>
+    <div id="tank-unknown-bus-alert" class="alert alert-error" style="display:none">
+      ❌ De bus in de URL bestaat niet. Selecteer handmatig.
+    </div>
+
+    <div class="card">
+      <!-- Bus selectie -->
+      <div class="form-group">
+        <label class="form-label">Bus *</label>
+        <select class="form-select" id="tank-bus-select">
+          <option value="">— Kies een bus —</option>
+        </select>
+        <div class="error-msg" id="err-tank-bus"></div>
+      </div>
+      <div id="selected-bus-preview" style="display:none;margin-bottom:14px"></div>
+
+      <!-- Kilometerstand -->
+      <div class="form-group">
+        <label class="form-label">Kilometerstand (km) *</label>
+        <input type="number" class="form-input" id="tank-odometer" min="0" step="1" placeholder="bv. 102450">
+        <div class="error-msg" id="err-tank-odometer"></div>
+      </div>
+
+      <!-- Liters -->
+      <div class="form-group">
+        <label class="form-label">Liters getankt *</label>
+        <input type="number" class="form-input" id="tank-liters" min="0.01" step="0.01" placeholder="bv. 45.20">
+        <div class="error-msg" id="err-tank-liters"></div>
+      </div>
+
+      <!-- Kosten -->
+      <div class="form-group">
+        <label class="form-label">Totaalbedrag (€) *</label>
+        <input type="number" class="form-input" id="tank-cost" min="0.01" step="0.01" placeholder="bv. 78.50">
+        <div class="error-msg" id="err-tank-cost"></div>
+      </div>
+
+      <!-- Opmerking -->
+      <div class="form-group">
+        <label class="form-label">Opmerking (optioneel)</label>
+        <textarea class="form-textarea" id="tank-note" maxlength="500" placeholder="Bv. vol getankt bij Total A10..." oninput="updateCharCount()"></textarea>
+        <div class="char-count"><span id="char-count">0</span> / 500</div>
+      </div>
+
+      <div id="tank-general-error" class="alert alert-error" style="display:none"></div>
+
+      <div style="display:flex;gap:10px;margin-top:4px">
+        <button class="btn btn-primary btn-full" onclick="saveFuelEntry()">✅ Tankbeurt opslaan</button>
+        <button class="btn btn-secondary" onclick="navigate('dashboard')">Annuleren</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════ BUS DETAIL ═══════════════════════ -->
+<div class="page" id="page-bus-detail">
+  <div class="container">
+    <a class="back-link" onclick="navigate('dashboard')">← Terug naar dashboard</a>
+    <div id="bus-detail-content"></div>
+  </div>
+</div>
+
+<!-- ═══════════════════════ BUS BEHEER ═══════════════════════ -->
+<div class="page" id="page-buses">
+  <div class="container">
+    <div class="page-title">🔧 Busbeheer</div>
+    <button class="btn btn-primary" style="margin-bottom:20px" onclick="openBusForm()">+ Nieuwe bus</button>
+    <div id="buses-list"></div>
+  </div>
+</div>
+
+<!-- ═══════════════════════ NFC ═══════════════════════ -->
+<div class="page" id="page-nfc">
+  <div class="container">
+    <div class="page-title">📡 NFC Configuratie</div>
+    <div class="alert alert-info">
+      ℹ️ Programmeer elke NFC-tag met de onderstaande URL. Gebruik een NFC-writer app op je iPhone (bv. NFC Tools).
+    </div>
+    <div class="card" style="margin-bottom:14px">
+      <div class="section-hdr">Instructies</div>
+      <ol style="padding-left:20px;line-height:2;color:var(--text-muted);font-size:.9rem">
+        <li>Open een NFC-writer app (bv. <strong>NFC Tools</strong>) op je iPhone.</li>
+        <li>Kies voor het schrijven van een URL.</li>
+        <li>Kopieer de URL van de juiste bus hieronder.</li>
+        <li>Schrijf de URL naar de NFC-tag.</li>
+        <li>Test de tag door deze te scannen.</li>
+      </ol>
+    </div>
+    <div id="nfc-list"></div>
+  </div>
+</div>
+
+<!-- ═══════════════════════ QR ═══════════════════════ -->
+<div class="page" id="page-qr">
+  <div class="container">
+    <div class="page-title">📱 QR-codes</div>
+    <div class="alert alert-info">
+      ℹ️ Scan de QR-code met je iPhone-camera om direct naar het tankformulier te gaan.
+    </div>
+    <div id="qr-list"></div>
+  </div>
+</div>
+
+<!-- ═══════════════════════ EXPORT ═══════════════════════ -->
+<div class="page" id="page-export">
+  <div class="container">
+    <div class="page-title">📊 Excel Export</div>
+    <div class="alert alert-info">
+      ℹ️ Exporteer tankdata als CSV. Open het bestand direct in Excel.
+    </div>
+    <div id="export-list"></div>
+  </div>
+</div>
+
+<!-- ═══════════════════════ MODAL: BUS FORM ═══════════════════════ -->
+<div class="modal-overlay" id="bus-modal">
+  <div class="modal">
+    <div class="modal-title" id="bus-modal-title">Bus toevoegen</div>
+    <div class="form-group">
+      <label class="form-label">Kenteken * <span style="font-size:.7rem;color:var(--text-muted)">(unieke sleutel)</span></label>
+      <input type="text" class="form-input" id="bus-plate" placeholder="bv. V-123-AB">
+      <div class="error-msg" id="err-bus-plate"></div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Naam *</label>
+      <input type="text" class="form-input" id="bus-name" placeholder="bv. SummerVan">
+      <div class="error-msg" id="err-bus-name"></div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Brandstofsoort *</label>
+      <select class="form-select" id="bus-fuel">
+        <option value="">— Kies —</option>
+        <option>Diesel</option>
+        <option>Benzine 95</option>
+        <option>Benzine 98</option>
+        <option>LPG</option>
+      </select>
+      <div class="error-msg" id="err-bus-fuel"></div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Kleur camper-icoon *</label>
+      <div class="swatch-grid" id="color-swatches"></div>
+      <input type="hidden" id="bus-color" value="">
+      <div class="error-msg" id="err-bus-color"></div>
+    </div>
+    <div style="display:flex;gap:10px;margin-top:6px">
+      <button class="btn btn-primary btn-full" onclick="saveBus()">Opslaan</button>
+      <button class="btn btn-secondary" onclick="closeBusModal()">Annuleren</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════ MODAL: EDIT ENTRY ═══════════════════════ -->
+<div class="modal-overlay" id="edit-modal">
+  <div class="modal">
+    <div class="modal-title">Tankbeurt bewerken</div>
+    <input type="hidden" id="edit-entry-id">
+    <div class="form-group">
+      <label class="form-label">Kilometerstand (km) *</label>
+      <input type="number" class="form-input" id="edit-odometer" min="0" step="1">
+      <div class="error-msg" id="err-edit-odometer"></div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Liters *</label>
+      <input type="number" class="form-input" id="edit-liters" min="0.01" step="0.01">
+      <div class="error-msg" id="err-edit-liters"></div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Totaalbedrag (€) *</label>
+      <input type="number" class="form-input" id="edit-cost" min="0.01" step="0.01">
+      <div class="error-msg" id="err-edit-cost"></div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Opmerking</label>
+      <textarea class="form-textarea" id="edit-note" maxlength="500"></textarea>
+    </div>
+    <div id="edit-general-error" class="alert alert-error" style="display:none"></div>
+    <div style="display:flex;gap:10px;margin-top:6px">
+      <button class="btn btn-primary btn-full" onclick="saveEditEntry()">Opslaan</button>
+      <button class="btn btn-secondary" onclick="closeEditModal()">Annuleren</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════ MODAL: DEVIATION WARNING ═══════════════════════ -->
+<div class="modal-overlay" id="deviation-modal">
+  <div class="modal">
+    <div class="modal-title">⚠️ Afwijkende meting</div>
+    <div class="alert alert-warning" id="deviation-msg"></div>
+    <p style="margin-bottom:16px;font-size:.9rem;color:var(--text-muted)">
+      Wat wil je doen met deze meting?
+    </p>
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <button class="btn btn-primary" onclick="confirmDeviation(false)">✅ Wel meenemen in statistieken</button>
+      <button class="btn btn-secondary" onclick="confirmDeviation(true)">🚫 Niet meenemen in statistieken</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ════════════════════════════════════════════════════
+   DATA LAYER
+   ════════════════════════════════════════════════════ */
+
+const LS_BUSES   = 'tanklog_buses';
+const LS_ENTRIES = 'tanklog_entries';
+
+function getBuses()   { return JSON.parse(localStorage.getItem(LS_BUSES)   || '[]'); }
+function getEntries() { return JSON.parse(localStorage.getItem(LS_ENTRIES) || '[]'); }
+function saveBuses(b)   { localStorage.setItem(LS_BUSES,   JSON.stringify(b)); }
+function saveEntries(e) { localStorage.setItem(LS_ENTRIES, JSON.stringify(e)); }
+
+function generateId() {
+  return 'e-' + Date.now() + '-' + Math.random().toString(36).slice(2, 7);
+}
+
+function getBusEntries(plate) {
+  return getEntries()
+    .filter(e => e.busLicensePlate === plate)
+    .sort((a, b) => a.odometer - b.odometer); // chronological by odometer
+}
+
+/* ════════════════════════════════════════════════════
+   CALCULATION LOGIC
+   ════════════════════════════════════════════════════
+
+   IMPORTANT: All entries remain in history forever.
+   - excluded_from_stats = true means the entry is NOT used for averages,
+     but its odometer IS still visible in history.
+   - Validation of odometer uses the LAST entry regardless of excluded status.
+   - Average statistics only use entries with excluded_from_stats === false
+     AND where calculatedKmPerLiter is not null (i.e. there was a previous entry).
+
+   Example:
+     Entry A: km 100000, 50L, included
+     Entry B: km 100500, 100L, EXCLUDED
+     Entry C: km 101000, 50L, included
+   → averages computed from A→C only.
+   → Entry B visible in history but not in average.
+   ════════════════════════════════════════════════════ */
+
+/**
+ * Recalculate computed fields for all entries of a bus.
+ * We do this after every save/edit.
+ * For the first entry (no previous entry) → no fuel calculation.
+ */
+function recalcBusEntries(plate) {
+  const allEntries = getEntries();
+  const busEntries = allEntries
+    .filter(e => e.busLicensePlate === plate)
+    .sort((a, b) => a.odometer - b.odometer);
+
+  for (let i = 0; i < busEntries.length; i++) {
+    const entry = busEntries[i];
+    if (i === 0) {
+      // First entry: no distance to calculate from
+      entry.calculatedDistance     = null;
+      entry.calculatedKmPerLiter   = null;
+      entry.calculatedLitersPer100Km = null;
+      entry.calculatedCostPerKm    = null;
+    } else {
+      // Distance = this entry's odometer – previous entry's odometer (any entry)
+      const prev = busEntries[i - 1];
+      const dist = entry.odometer - prev.odometer;
+      entry.calculatedDistance = dist > 0 ? dist : null;
+      if (dist > 0 && entry.liters > 0) {
+        entry.calculatedKmPerLiter     = +(dist / entry.liters).toFixed(3);
+        entry.calculatedLitersPer100Km = +(entry.liters / dist * 100).toFixed(3);
+        entry.calculatedCostPerKm      = +(entry.totalCost / dist).toFixed(4);
+      } else {
+        entry.calculatedKmPerLiter     = null;
+        entry.calculatedLitersPer100Km = null;
+        entry.calculatedCostPerKm      = null;
+      }
+    }
+    // Write back
+    const idx = allEntries.findIndex(e => e.id === entry.id);
+    if (idx !== -1) allEntries[idx] = entry;
+  }
+  saveEntries(allEntries);
+}
+
+/**
+ * Get statistics for a bus (averages based on INCLUDED entries only).
+ */
+function getBusStats(plate) {
+  const entries = getBusEntries(plate);
+  const valid = entries.filter(e => !e.excluded_from_stats && e.calculatedKmPerLiter !== null);
+  if (valid.length === 0) return { avgKmL: null, avgL100: null, avgCostKm: null, lastEntry: entries.at(-1) || null };
+
+  const avgKmL   = +(valid.reduce((s, e) => s + e.calculatedKmPerLiter, 0) / valid.length).toFixed(2);
+  const avgL100  = +(valid.reduce((s, e) => s + e.calculatedLitersPer100Km, 0) / valid.length).toFixed(2);
+  const avgCostKm = +(valid.reduce((s, e) => s + e.calculatedCostPerKm, 0) / valid.length).toFixed(4);
+  return { avgKmL, avgL100, avgCostKm, lastEntry: entries.at(-1) || null };
+}
+
+/**
+ * Check if a new kmPerLiter value deviates more than 10% from historical avg.
+ * Returns: { deviates: bool, pct: number, avgKmL: number }
+ */
+function checkDeviation(plate, kmPerLiter) {
+  const entries = getBusEntries(plate);
+  const valid = entries.filter(e => !e.excluded_from_stats && e.calculatedKmPerLiter !== null);
+  if (valid.length < 2) return { deviates: false };
+  const avg = valid.reduce((s, e) => s + e.calculatedKmPerLiter, 0) / valid.length;
+  const pct = Math.abs(kmPerLiter - avg) / avg * 100;
+  return { deviates: pct > 10, pct: Math.round(pct), avgKmL: +avg.toFixed(2) };
+}
+
+/* ════════════════════════════════════════════════════
+   ROUTER / NAVIGATION
+   ════════════════════════════════════════════════════ */
+
+let currentPage = 'dashboard';
+
+function navigate(page, params = {}) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+
+  const pageEl = document.getElementById('page-' + page);
+  if (!pageEl) return;
+  pageEl.classList.add('active');
+  const navBtn = document.getElementById('nav-' + page);
+  if (navBtn) navBtn.classList.add('active');
+
+  currentPage = page;
+
+  // Render each page
+  if (page === 'dashboard')    renderDashboard();
+  if (page === 'tank')         renderTankForm(params.plate || null);
+  if (page === 'bus-detail')   renderBusDetail(params.plate);
+  if (page === 'buses')        renderBusManagement();
+  if (page === 'nfc')          renderNFC();
+  if (page === 'qr')           renderQR();
+  if (page === 'export')       renderExport();
+}
+
+// On load: parse URL params for NFC / QR deep-linking
+window.addEventListener('DOMContentLoaded', () => {
+  loadDummyData();
+  const qs = new URLSearchParams(window.location.search);
+  const busParam = qs.get('bus');
+  if (busParam) {
+    navigate('tank', { plate: busParam });
+  } else {
+    navigate('dashboard');
+  }
+});
+
+/* ════════════════════════════════════════════════════
+   SVG CAMPER ICON
+   ════════════════════════════════════════════════════ */
+
+function camperSVG(color, size = 52) {
+  return `<svg width="${size}" height="${size}" viewBox="0 0 80 52" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <!-- Body -->
+    <rect x="4" y="14" width="56" height="28" rx="6" fill="${color}"/>
+    <!-- Cab -->
+    <rect x="56" y="20" width="18" height="22" rx="5" fill="${color}"/>
+    <!-- Windows (cab) -->
+    <rect x="59" y="23" width="12" height="10" rx="2" fill="rgba(255,255,255,0.65)"/>
+    <!-- Window (main) -->
+    <rect x="10" y="18" width="20" height="12" rx="2" fill="rgba(255,255,255,0.65)"/>
+    <rect x="34" y="18" width="18" height="12" rx="2" fill="rgba(255,255,255,0.65)"/>
+    <!-- Door line -->
+    <line x1="32" y1="14" x2="32" y2="42" stroke="rgba(0,0,0,.12)" stroke-width="1.5"/>
+    <!-- Wheels -->
+    <circle cx="18" cy="43" r="7" fill="#555"/>
+    <circle cx="18" cy="43" r="3.5" fill="#ccc"/>
+    <circle cx="62" cy="43" r="7" fill="#555"/>
+    <circle cx="62" cy="43" r="3.5" fill="#ccc"/>
+    <!-- Bumper -->
+    <rect x="4" y="38" width="6" height="6" rx="2" fill="rgba(0,0,0,.18)"/>
+    <rect x="70" y="35" width="6" height="7" rx="2" fill="rgba(0,0,0,.18)"/>
+    <!-- Stripe -->
+    <rect x="4" y="30" width="56" height="3" fill="rgba(255,255,255,.22)"/>
+  </svg>`;
+}
+
+/* ════════════════════════════════════════════════════
+   DASHBOARD
+   ════════════════════════════════════════════════════ */
+
+let globalChartInstance = null;
+
+function renderDashboard() {
+  const buses = getBuses();
+  const grid  = document.getElementById('bus-grid');
+  const empty = document.getElementById('dashboard-empty');
+  const chartCard = document.getElementById('global-chart-card');
+
+  if (buses.length === 0) {
+    empty.style.display = 'block';
+    grid.innerHTML = '';
+    chartCard.style.display = 'none';
+    return;
+  }
+  empty.style.display = 'none';
+  chartCard.style.display = 'block';
+
+  grid.innerHTML = buses.map(bus => {
+    const stats = getBusStats(bus.licensePlate);
+    const last  = stats.lastEntry;
+    const lastDate = last ? formatDate(last.datetime) : '—';
+    return `
+    <div class="bus-card" style="border-top-color:${bus.iconColor}">
+      <div class="bus-card-header">
+        ${camperSVG(bus.iconColor, 52)}
+        <div>
+          <div class="bus-card-name">${esc(bus.name)}</div>
+          <div class="bus-card-plate">${esc(bus.licensePlate)}</div>
+          <span class="fuel-badge">${esc(bus.fuelType)}</span>
+        </div>
+      </div>
+      <div class="bus-stats">
+        <div class="bus-stat">
+          <div class="bus-stat-label">Gem. km/l</div>
+          <div class="bus-stat-value ${stats.avgKmL == null ? 'muted' : ''}">${stats.avgKmL != null ? stats.avgKmL : '–'}</div>
+        </div>
+        <div class="bus-stat">
+          <div class="bus-stat-label">Gem. l/100km</div>
+          <div class="bus-stat-value ${stats.avgL100 == null ? 'muted' : ''}">${stats.avgL100 != null ? stats.avgL100 : '–'}</div>
+        </div>
+        <div class="bus-stat">
+          <div class="bus-stat-label">€/km</div>
+          <div class="bus-stat-value ${stats.avgCostKm == null ? 'muted' : ''}">${stats.avgCostKm != null ? '€ ' + stats.avgCostKm : '–'}</div>
+        </div>
+        <div class="bus-stat">
+          <div class="bus-stat-label">Laatste tankbeurt</div>
+          <div class="bus-stat-value muted" style="font-size:.8rem">${lastDate}</div>
+        </div>
+      </div>
+      <div class="bus-card-actions">
+        <button class="btn btn-primary btn-sm btn-full" onclick="navigate('tank',{plate:'${esc(bus.licensePlate)}'})">⛽ Tanken</button>
+        <button class="btn btn-outline btn-sm btn-full" onclick="navigate('bus-detail',{plate:'${esc(bus.licensePlate)}'})">📋 Details</button>
+      </div>
+    </div>`;
+  }).join('');
+
+  renderGlobalChart(buses);
+}
+
+function renderGlobalChart(buses) {
+  if (globalChartInstance) { globalChartInstance.destroy(); globalChartInstance = null; }
+  const ctx = document.getElementById('globalChart');
+  if (!ctx) return;
+
+  const COLORS = ['#5E8C61','#E8864A','#87B9D4','#9B59B6','#E91E8C','#F1C40F','#E74C3C','#1ABC9C'];
+  const datasets = [];
+
+  buses.forEach((bus, i) => {
+    const entries = getBusEntries(bus.licensePlate)
+      .filter(e => !e.excluded_from_stats && e.calculatedKmPerLiter !== null);
+    if (entries.length === 0) return;
+    datasets.push({
+      label: bus.name,
+      data: entries.map(e => ({ x: e.datetime.slice(0,10), y: e.calculatedKmPerLiter })),
+      borderColor: COLORS[i % COLORS.length],
+      backgroundColor: COLORS[i % COLORS.length] + '22',
+      tension: 0.3, fill: false, pointRadius: 4,
+    });
+  });
+
+  globalChartInstance = new Chart(ctx, {
+    type: 'line',
+    data: { datasets },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      scales: {
+        x: { type: 'category', grid: { color: '#F0E8D4' } },
+        y: { title: { display: true, text: 'km/l' }, grid: { color: '#F0E8D4' } }
+      },
+      plugins: { legend: { position: 'bottom' } }
+    }
+  });
+}
+
+/* ════════════════════════════════════════════════════
+   BUS DETAIL
+   ════════════════════════════════════════════════════ */
+
+let detailChartKml = null, detailChartCost = null;
+
+function renderBusDetail(plate) {
+  const bus = getBuses().find(b => b.licensePlate === plate);
+  const container = document.getElementById('bus-detail-content');
+  if (!bus) {
+    container.innerHTML = '<div class="alert alert-error">Bus niet gevonden.</div>';
+    return;
+  }
+  const stats   = getBusStats(plate);
+  const entries = getBusEntries(plate);
+
+  const nd = v => v != null ? v : '–';
+
+  container.innerHTML = `
+    <div style="display:flex;align-items:center;gap:14px;margin-bottom:14px">
+      ${camperSVG(bus.iconColor, 64)}
+      <div>
+        <div style="font-family:Nunito;font-weight:900;font-size:1.5rem">${esc(bus.name)}</div>
+        <div style="color:var(--text-muted);font-size:.85rem">${esc(bus.licensePlate)}</div>
+        <span class="fuel-badge">${esc(bus.fuelType)}</span>
+      </div>
+      <div style="margin-left:auto">
+        <button class="btn btn-primary btn-sm" onclick="navigate('tank',{plate:'${esc(plate)}'})">⛽ Tanken</button>
+      </div>
+    </div>
+
+    <div class="stats-row">
+      <div class="stat-box">
+        <div class="stat-box-label">Gem. km/l</div>
+        <div class="stat-box-val ${stats.avgKmL==null?'nd':''}">${nd(stats.avgKmL)}</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-box-label">Gem. l/100km</div>
+        <div class="stat-box-val ${stats.avgL100==null?'nd':''}">${nd(stats.avgL100)}</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-box-label">Gem. €/km</div>
+        <div class="stat-box-val ${stats.avgCostKm==null?'nd':''}">${stats.avgCostKm!=null?'€ '+stats.avgCostKm:'–'}</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-box-label">Tankbeurten</div>
+        <div class="stat-box-val">${entries.length}</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="section-hdr">📈 Verbruik km/l over tijd</div>
+      <div class="chart-wrap"><canvas id="detailChartKml"></canvas></div>
+    </div>
+
+    <div class="card">
+      <div class="section-hdr">💶 Kosten/km over tijd</div>
+      <div class="chart-wrap"><canvas id="detailChartCost"></canvas></div>
+    </div>
+
+    <div class="card">
+      <div class="section-hdr">📋 Alle tankbeurten</div>
+      ${entries.length === 0
+        ? '<p style="color:var(--text-muted);font-size:.9rem">Nog geen tankbeurten voor deze bus.</p>'
+        : `<div class="table-wrap">${buildEntriesTable(entries, plate)}</div>`
+      }
+    </div>
+  `;
+
+  // Charts
+  setTimeout(() => {
+    const valid = entries.filter(e => !e.excluded_from_stats && e.calculatedKmPerLiter !== null);
+    if (detailChartKml) detailChartKml.destroy();
+    if (detailChartCost) detailChartCost.destroy();
+    const chartDefaults = {
+      responsive: true, maintainAspectRatio: false,
+      scales: {
+        x: { type:'category', grid:{color:'#F0E8D4'} },
+        y: { grid:{color:'#F0E8D4'} }
+      },
+      plugins:{ legend:{display:false} }
+    };
+    detailChartKml = new Chart(document.getElementById('detailChartKml'), {
+      type:'line',
+      data:{ datasets:[{ data: valid.map(e=>({x:e.datetime.slice(0,10),y:e.calculatedKmPerLiter})),
+        borderColor:'#5E8C61',backgroundColor:'#5E8C6122',tension:.3,fill:true,pointRadius:4 }] },
+      options:{ ...chartDefaults, scales:{...chartDefaults.scales, y:{...chartDefaults.scales.y, title:{display:true,text:'km/l'}}} }
+    });
+    detailChartCost = new Chart(document.getElementById('detailChartCost'), {
+      type:'line',
+      data:{ datasets:[{ data: valid.map(e=>({x:e.datetime.slice(0,10),y:e.calculatedCostPerKm})),
+        borderColor:'#E8864A',backgroundColor:'#E8864A22',tension:.3,fill:true,pointRadius:4 }] },
+      options:{ ...chartDefaults, scales:{...chartDefaults.scales, y:{...chartDefaults.scales.y, title:{display:true,text:'€/km'}}} }
+    });
+  }, 50);
+}
+
+function buildEntriesTable(entries, plate) {
+  const rows = [...entries].reverse().map(e => {
+    const excl = e.excluded_from_stats;
+    return `<tr class="${excl?'excluded':''}">
+      <td>${formatDate(e.datetime)}</td>
+      <td>${fmt(e.odometer)} km</td>
+      <td>${fmt(e.liters)} L</td>
+      <td>€ ${fmt(e.totalCost)}</td>
+      <td>${e.calculatedKmPerLiter != null ? e.calculatedKmPerLiter : '—'}</td>
+      <td>${e.calculatedCostPerKm != null ? '€ '+e.calculatedCostPerKm : '—'}</td>
+      <td style="max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(e.note||'')}">${esc(e.note||'—')}</td>
+      <td>${excl
+        ? '<span class="badge badge-excluded">Uitgesloten</span>'
+        : '<span class="badge badge-ok">Meegenomen</span>'}</td>
+      <td>
+        <button class="btn btn-sm btn-secondary" onclick="openEditModal('${e.id}')">✏️</button>
+        <button class="btn btn-sm ${excl?'btn-primary':'btn-danger'}" onclick="toggleExclude('${e.id}','${plate}')">
+          ${excl ? '✅ Meenemen' : '🚫 Uitsluiten'}
+        </button>
+      </td>
+    </tr>`;
+  }).join('');
+  return `<table>
+    <thead><tr>
+      <th>Datum</th><th>Km-stand</th><th>Liters</th><th>Kosten</th>
+      <th>km/l</th><th>€/km</th><th>Opmerking</th><th>Status</th><th>Acties</th>
+    </tr></thead>
+    <tbody>${rows}</tbody>
+  </table>`;
+}
+
+function toggleExclude(id, plate) {
+  const entries = getEntries();
+  const idx = entries.findIndex(e => e.id === id);
+  if (idx === -1) return;
+  entries[idx].excluded_from_stats = !entries[idx].excluded_from_stats;
+  saveEntries(entries);
+  recalcBusEntries(plate);
+  renderBusDetail(plate);
+}
+
+/* ════════════════════════════════════════════════════
+   TANK FORM
+   ════════════════════════════════════════════════════ */
+
+// Pending entry waiting for deviation confirmation
+let _pendingEntry = null;
+
+function renderTankForm(plate) {
+  _pendingEntry = null;
+  const buses = getBuses();
+
+  // Populate select
+  const sel = document.getElementById('tank-bus-select');
+  sel.innerHTML = '<option value="">— Kies een bus —</option>' +
+    buses.map(b => `<option value="${esc(b.licensePlate)}">${esc(b.name)} (${esc(b.licensePlate)})</option>`).join('');
+
+  // Clear form
+  ['tank-odometer','tank-liters','tank-cost','tank-note'].forEach(id => document.getElementById(id).value = '');
+  ['err-tank-bus','err-tank-odometer','err-tank-liters','err-tank-cost'].forEach(id => document.getElementById(id).textContent = '');
+  document.getElementById('tank-general-error').style.display = 'none';
+  document.getElementById('char-count').textContent = '0';
+  document.getElementById('selected-bus-preview').style.display = 'none';
+
+  // Alerts
+  document.getElementById('tank-no-bus-alert').style.display     = 'none';
+  document.getElementById('tank-unknown-bus-alert').style.display = 'none';
+
+  if (plate) {
+    const bus = buses.find(b => b.licensePlate === plate);
+    if (!bus) {
+      document.getElementById('tank-unknown-bus-alert').style.display = 'block';
+    } else {
+      sel.value = plate;
+      showBusPreview(bus);
+    }
+  } else {
+    document.getElementById('tank-no-bus-alert').style.display = 'block';
+  }
+
+  sel.onchange = () => {
+    const b = buses.find(b => b.licensePlate === sel.value);
+    if (b) showBusPreview(b); else document.getElementById('selected-bus-preview').style.display = 'none';
+  };
+}
+
+function showBusPreview(bus) {
+  const el = document.getElementById('selected-bus-preview');
+  el.style.display = 'block';
+  el.innerHTML = `<div style="display:flex;align-items:center;gap:10px;background:var(--cream);border-radius:10px;padding:10px 14px;">
+    ${camperSVG(bus.iconColor, 40)}
+    <div>
+      <strong>${esc(bus.name)}</strong>
+      <div style="font-size:.8rem;color:var(--text-muted)">${esc(bus.licensePlate)} · ${esc(bus.fuelType)}</div>
+    </div>
+  </div>`;
+}
+
+function updateCharCount() {
+  document.getElementById('char-count').textContent = document.getElementById('tank-note').value.length;
+}
+
+function saveFuelEntry() {
+  clearErrors(['err-tank-bus','err-tank-odometer','err-tank-liters','err-tank-cost']);
+  document.getElementById('tank-general-error').style.display = 'none';
+
+  const plate     = document.getElementById('tank-bus-select').value;
+  const odometer  = parseFloat(document.getElementById('tank-odometer').value);
+  const liters    = parseFloat(document.getElementById('tank-liters').value);
+  const totalCost = parseFloat(document.getElementById('tank-cost').value);
+  const note      = document.getElementById('tank-note').value.trim().slice(0,500);
+
+  let valid = true;
+  if (!plate) { setError('err-tank-bus', 'Selecteer een bus.'); valid = false; }
+  if (isNaN(odometer) || odometer <= 0) { setError('err-tank-odometer', 'Vul een geldige kilometerstand in.'); valid = false; }
+  if (isNaN(liters) || liters <= 0)     { setError('err-tank-liters', 'Liters moet groter zijn dan 0.'); valid = false; }
+  if (isNaN(totalCost) || totalCost <= 0) { setError('err-tank-cost', 'Bedrag moet groter zijn dan 0.'); valid = false; }
+  if (!valid) return;
+
+  // Validate odometer against last entry (any, including excluded)
+  const busEntries = getBusEntries(plate);
+  const lastEntry  = busEntries.at(-1);
+  if (lastEntry && odometer <= lastEntry.odometer) {
+    setError('err-tank-odometer', `Kilometerstand moet hoger zijn dan de vorige meting (${fmt(lastEntry.odometer)} km).`);
+    return;
+  }
+
+  // Calculate km/l for deviation check
+  let kmPerLiter = null;
+  if (lastEntry) {
+    const dist = odometer - lastEntry.odometer;
+    if (dist > 0 && liters > 0) kmPerLiter = dist / liters;
+  }
+
+  // Check deviation
+  if (kmPerLiter !== null) {
+    const dev = checkDeviation(plate, kmPerLiter);
+    if (dev.deviates) {
+      _pendingEntry = { plate, odometer, liters, totalCost, note };
+      document.getElementById('deviation-msg').innerHTML =
+        `Deze meting wijkt <strong>${dev.pct}%</strong> af van het gemiddelde verbruik 
+         (gemiddeld ${dev.avgKmL} km/l, nu ${kmPerLiter.toFixed(2)} km/l).<br><br>
+         Mogelijk is er een tankbeurt vergeten of is er een invoerfout gemaakt.
+         Wil je deze meting meenemen in de statistieken?`;
+      document.getElementById('deviation-modal').classList.add('open');
+      return;
+    }
+  }
+
+  // No deviation — save directly
+  commitFuelEntry(plate, odometer, liters, totalCost, note, false);
+}
+
+function confirmDeviation(excludeFromStats) {
+  document.getElementById('deviation-modal').classList.remove('open');
+  if (!_pendingEntry) return;
+  const { plate, odometer, liters, totalCost, note } = _pendingEntry;
+  _pendingEntry = null;
+  commitFuelEntry(plate, odometer, liters, totalCost, note, excludeFromStats);
+}
+
+function commitFuelEntry(plate, odometer, liters, totalCost, note, excluded) {
+  const entry = {
+    id: generateId(),
+    busLicensePlate: plate,
+    odometer,
+    liters,
+    totalCost,
+    note,
+    datetime: new Date().toISOString(),
+    excluded_from_stats: excluded,
+    calculatedDistance: null,
+    calculatedKmPerLiter: null,
+    calculatedLitersPer100Km: null,
+    calculatedCostPerKm: null,
+  };
+  const entries = getEntries();
+  entries.push(entry);
+  saveEntries(entries);
+  recalcBusEntries(plate);
+  navigate('bus-detail', { plate });
+}
+
+/* ════════════════════════════════════════════════════
+   EDIT ENTRY MODAL
+   ════════════════════════════════════════════════════ */
+
+function openEditModal(id) {
+  const entries = getEntries();
+  const entry = entries.find(e => e.id === id);
+  if (!entry) return;
+  document.getElementById('edit-entry-id').value = id;
+  document.getElementById('edit-odometer').value = entry.odometer;
+  document.getElementById('edit-liters').value   = entry.liters;
+  document.getElementById('edit-cost').value     = entry.totalCost;
+  document.getElementById('edit-note').value     = entry.note || '';
+  document.getElementById('edit-general-error').style.display = 'none';
+  clearErrors(['err-edit-odometer','err-edit-liters']);
+  document.getElementById('edit-modal').classList.add('open');
+}
+
+function closeEditModal() { document.getElementById('edit-modal').classList.remove('open'); }
+
+function saveEditEntry() {
+  clearErrors(['err-edit-odometer','err-edit-liters']);
+  const id        = document.getElementById('edit-entry-id').value;
+  const odometer  = parseFloat(document.getElementById('edit-odometer').value);
+  const liters    = parseFloat(document.getElementById('edit-liters').value);
+  const totalCost = parseFloat(document.getElementById('edit-cost').value);
+  const note      = document.getElementById('edit-note').value.trim().slice(0,500);
+
+  let valid = true;
+  if (isNaN(odometer) || odometer <= 0) { setError('err-edit-odometer','Vul een geldige kilometerstand in.'); valid = false; }
+  if (isNaN(liters)   || liters <= 0)   { setError('err-edit-liters','Liters moet groter zijn dan 0.'); valid = false; }
+  if (!valid) return;
+
+  const entries = getEntries();
+  const idx = entries.findIndex(e => e.id === id);
+  if (idx === -1) return;
+
+  // Validate odometer: must be between neighbours
+  const plate = entries[idx].busLicensePlate;
+  const busEntries = getBusEntries(plate).filter(e => e.id !== id);
+  const prev = busEntries.filter(e => e.odometer < odometer).at(-1);
+  const next = busEntries.filter(e => e.odometer > odometer)[0];
+  if (prev && odometer <= prev.odometer) {
+    setError('err-edit-odometer', `Kilometerstand moet hoger zijn dan vorige meting (${fmt(prev.odometer)} km).`);
+    return;
+  }
+  if (next && odometer >= next.odometer) {
+    setError('err-edit-odometer', `Kilometerstand moet lager zijn dan volgende meting (${fmt(next.odometer)} km).`);
+    return;
+  }
+
+  entries[idx] = { ...entries[idx], odometer, liters, totalCost, note };
+  saveEntries(entries);
+  recalcBusEntries(plate);
+  closeEditModal();
+  renderBusDetail(plate);
+}
+
+/* ════════════════════════════════════════════════════
+   BUS MANAGEMENT
+   ════════════════════════════════════════════════════ */
+
+const COLORS = [
+  { label:'Groen',  hex:'#5E8C61' },
+  { label:'Blauw',  hex:'#4A80B8' },
+  { label:'Rood',   hex:'#C0392B' },
+  { label:'Oranje', hex:'#E8864A' },
+  { label:'Geel',   hex:'#D4AC0D' },
+  { label:'Paars',  hex:'#7D3C98' },
+  { label:'Roze',   hex:'#E056A0' },
+  { label:'Beige',  hex:'#C8A96E' },
+];
+
+let _editingPlate = null; // null = new bus, else plate being edited
+
+function openBusForm(plate = null) {
+  _editingPlate = plate;
+  document.getElementById('bus-modal-title').textContent = plate ? 'Bus bewerken' : 'Bus toevoegen';
+  clearErrors(['err-bus-plate','err-bus-name','err-bus-fuel','err-bus-color']);
+
+  const swatches = document.getElementById('color-swatches');
+  swatches.innerHTML = COLORS.map(c =>
+    `<div class="swatch" style="background:${c.hex}" title="${c.label}"
+      onclick="selectColor('${c.hex}')"></div>`
+  ).join('');
+
+  if (plate) {
+    const bus = getBuses().find(b => b.licensePlate === plate);
+    if (bus) {
+      document.getElementById('bus-plate').value = bus.licensePlate;
+      document.getElementById('bus-plate').disabled = true;
+      document.getElementById('bus-name').value  = bus.name;
+      document.getElementById('bus-fuel').value  = bus.fuelType;
+      document.getElementById('bus-color').value = bus.iconColor;
+      selectColor(bus.iconColor);
+    }
+  } else {
+    document.getElementById('bus-plate').value    = '';
+    document.getElementById('bus-plate').disabled = false;
+    document.getElementById('bus-name').value  = '';
+    document.getElementById('bus-fuel').value  = '';
+    document.getElementById('bus-color').value = '';
+  }
+  document.getElementById('bus-modal').classList.add('open');
+}
+
+function selectColor(hex) {
+  document.getElementById('bus-color').value = hex;
+  document.querySelectorAll('.swatch').forEach(s => {
+    s.classList.toggle('selected', s.style.background === hex || s.style.backgroundColor === hex);
+  });
+}
+
+function closeBusModal() {
+  document.getElementById('bus-modal').classList.remove('open');
+  document.getElementById('bus-plate').disabled = false;
+}
+
+function saveBus() {
+  clearErrors(['err-bus-plate','err-bus-name','err-bus-fuel','err-bus-color']);
+  const plate = document.getElementById('bus-plate').value.trim().toUpperCase();
+  const name  = document.getElementById('bus-name').value.trim();
+  const fuel  = document.getElementById('bus-fuel').value;
+  const color = document.getElementById('bus-color').value;
+
+  let valid = true;
+  if (!plate) { setError('err-bus-plate','Vul een kenteken in.'); valid = false; }
+  if (!name)  { setError('err-bus-name', 'Vul een naam in.');    valid = false; }
+  if (!fuel)  { setError('err-bus-fuel', 'Kies een brandstofsoort.'); valid = false; }
+  if (!color) { setError('err-bus-color','Kies een kleur.'); valid = false; }
+  if (!valid) return;
+
+  const buses = getBuses();
+  if (!_editingPlate) {
+    if (buses.find(b => b.licensePlate === plate)) {
+      setError('err-bus-plate','Dit kenteken bestaat al.'); return;
+    }
+    buses.push({ licensePlate: plate, name, fuelType: fuel, iconColor: color, createdAt: new Date().toISOString() });
+  } else {
+    const idx = buses.findIndex(b => b.licensePlate === _editingPlate);
+    if (idx !== -1) buses[idx] = { ...buses[idx], name, fuelType: fuel, iconColor: color };
+  }
+  saveBuses(buses);
+  closeBusModal();
+  renderBusManagement();
+}
+
+function renderBusManagement() {
+  const buses = getBuses();
+  const list  = document.getElementById('buses-list');
+  if (buses.length === 0) {
+    list.innerHTML = `<div class="empty-state card">
+      <div class="empty-state-icon">🚐</div>
+      <div class="empty-state-title">Nog geen bussen</div>
+      <p class="empty-state-text">Voeg je eerste bus toe via de knop hierboven.</p>
+    </div>`;
+    return;
+  }
+  list.innerHTML = buses.map(bus => `
+    <div class="card" style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">
+      ${camperSVG(bus.iconColor, 44)}
+      <div style="flex:1;min-width:120px">
+        <div style="font-family:Nunito;font-weight:900;font-size:1rem">${esc(bus.name)}</div>
+        <div style="font-size:.8rem;color:var(--text-muted)">${esc(bus.licensePlate)} · ${esc(bus.fuelType)}</div>
+      </div>
+      <button class="btn btn-secondary btn-sm" onclick="openBusForm('${esc(bus.licensePlate)}')">✏️ Bewerken</button>
+    </div>
+  `).join('');
+}
+
+/* ════════════════════════════════════════════════════
+   NFC
+   ════════════════════════════════════════════════════ */
+
+function renderNFC() {
+  const buses = getBuses();
+  const list  = document.getElementById('nfc-list');
+  if (buses.length === 0) {
+    list.innerHTML = '<div class="alert alert-info">Voeg eerst een bus toe.</div>'; return;
+  }
+  const base = window.location.origin + window.location.pathname;
+  list.innerHTML = buses.map(bus => {
+    const url = `${base}?bus=${encodeURIComponent(bus.licensePlate)}`;
+    return `<div class="nfc-card">
+      <div style="display:flex;align-items:center;gap:12px">
+        ${camperSVG(bus.iconColor, 40)}
+        <div>
+          <strong>${esc(bus.name)}</strong>
+          <div style="font-size:.78rem;color:var(--text-muted)">${esc(bus.licensePlate)}</div>
+        </div>
+      </div>
+      <div class="url-box" onclick="copyToClipboard('${url}',this)" title="Klik om te kopiëren">${url}</div>
+      <div style="font-size:.75rem;color:var(--text-muted)">📋 Klik op de URL om te kopiëren</div>
+    </div>`;
+  }).join('');
+}
+
+function copyToClipboard(text, el) {
+  navigator.clipboard.writeText(text).then(() => {
+    const old = el.textContent;
+    el.textContent = '✅ Gekopieerd!';
+    setTimeout(() => el.textContent = old, 1500);
+  });
+}
+
+/* ════════════════════════════════════════════════════
+   QR CODES
+   ════════════════════════════════════════════════════ */
+
+function renderQR() {
+  const buses = getBuses();
+  const list  = document.getElementById('qr-list');
+  if (buses.length === 0) {
+    list.innerHTML = '<div class="alert alert-info">Voeg eerst een bus toe.</div>'; return;
+  }
+  const base = window.location.origin + window.location.pathname;
+  list.innerHTML = buses.map((bus, i) => `
+    <div class="qr-card">
+      <div style="display:flex;align-items:center;gap:12px">
+        ${camperSVG(bus.iconColor, 40)}
+        <div>
+          <strong>${esc(bus.name)}</strong>
+          <div style="font-size:.78rem;color:var(--text-muted)">${esc(bus.licensePlate)}</div>
+        </div>
+      </div>
+      <div id="qr-wrap-${i}" style="background:#fff;display:inline-block;padding:10px;border-radius:8px;border:2px solid var(--sand-dark)"></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn btn-primary btn-sm" onclick="downloadQR(${i},'${esc(bus.name)}')">⬇️ Download QR</button>
+      </div>
+    </div>
+  `).join('');
+
+  // Generate QR codes after DOM is ready
+  setTimeout(() => {
+    buses.forEach((bus, i) => {
+      const url = `${base}?bus=${encodeURIComponent(bus.licensePlate)}`;
+      const el = document.getElementById('qr-wrap-' + i);
+      if (el) new QRCode(el, { text: url, width: 160, height: 160, correctLevel: QRCode.CorrectLevel.M });
+    });
+  }, 50);
+}
+
+function downloadQR(idx, name) {
+  const wrap = document.getElementById('qr-wrap-' + idx);
+  const img  = wrap ? wrap.querySelector('img') : null;
+  if (!img) return;
+  const a = document.createElement('a');
+  a.href = img.src;
+  a.download = 'qr-' + name.replace(/\s+/g,'-') + '.png';
+  a.click();
+}
+
+/* ════════════════════════════════════════════════════
+   EXPORT
+   ════════════════════════════════════════════════════ */
+
+function renderExport() {
+  const buses = getBuses();
+  const list  = document.getElementById('export-list');
+  if (buses.length === 0) {
+    list.innerHTML = '<div class="alert alert-info">Voeg eerst een bus toe.</div>'; return;
+  }
+  list.innerHTML = `
+    <div class="card">
+      <div class="section-hdr">📥 Exporteer per bus</div>
+      ${buses.map(bus => `
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px;flex-wrap:wrap">
+          ${camperSVG(bus.iconColor, 36)}
+          <span style="font-weight:700;flex:1">${esc(bus.name)} <small style="color:var(--text-muted)">${esc(bus.licensePlate)}</small></span>
+          <button class="btn btn-primary btn-sm" onclick="exportBusCSV('${esc(bus.licensePlate)}')">📊 Download CSV</button>
+        </div>
+      `).join('')}
+    </div>
+    <div class="card">
+      <div class="section-hdr">📥 Exporteer alle bussen</div>
+      <button class="btn btn-primary" onclick="exportAllCSV()">📊 Download alle bussen</button>
+    </div>
+  `;
+}
+
+function buildCSVRows(plate) {
+  const bus     = getBuses().find(b => b.licensePlate === plate);
+  if (!bus) return [];
+  const entries = getBusEntries(plate);
+  return entries.map(e => [
+    plate,
+    bus.name,
+    bus.fuelType,
+    e.datetime,
+    e.odometer,
+    e.liters,
+    e.totalCost,
+    (e.note || '').replace(/"/g,'""'),
+    e.excluded_from_stats ? 'Ja' : 'Nee',
+    e.calculatedDistance ?? '',
+    e.calculatedKmPerLiter ?? '',
+    e.calculatedLitersPer100Km ?? '',
+    e.calculatedCostPerKm ?? '',
+  ]);
+}
+
+const CSV_HEADER = ['Kenteken','Naam','Brandstof','Datum/tijd','Km-stand','Liters',
+  'Totaalbedrag','Opmerking','Uitgesloten','Afstand','km/l','l/100km','€/km'];
+
+function rowsToCSV(rows) {
+  const lines = [CSV_HEADER.join(';'), ...rows.map(r => r.map(v => `"${v}"`).join(';'))];
+  return '\uFEFF' + lines.join('\r\n'); // BOM for Excel
+}
+
+function downloadCSV(csv, filename) {
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href = url; a.download = filename; a.click();
+  URL.revokeObjectURL(url);
+}
+
+function exportBusCSV(plate) {
+  const rows = buildCSVRows(plate);
+  downloadCSV(rowsToCSV(rows), `tanklog-${plate}.csv`);
+}
+
+function exportAllCSV() {
+  const buses = getBuses();
+  const rows  = buses.flatMap(b => buildCSVRows(b.licensePlate));
+  downloadCSV(rowsToCSV(rows), 'tanklog-alle-bussen.csv');
+}
+
+/* ════════════════════════════════════════════════════
+   HELPERS
+   ════════════════════════════════════════════════════ */
+
+function esc(str) {
+  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function fmt(num) {
+  if (num == null) return '—';
+  return Number(num).toLocaleString('nl-NL');
+}
+function formatDate(iso) {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  return d.toLocaleDateString('nl-NL', { day:'2-digit', month:'short', year:'numeric' }) +
+    ' ' + d.toLocaleTimeString('nl-NL', { hour:'2-digit', minute:'2-digit' });
+}
+function setError(id, msg) { document.getElementById(id).textContent = msg; }
+function clearErrors(ids)  { ids.forEach(id => document.getElementById(id).textContent = ''); }
+
+/* Close modals on overlay click */
+document.querySelectorAll('.modal-overlay').forEach(overlay => {
+  overlay.addEventListener('click', e => { if (e.target === overlay) overlay.classList.remove('open'); });
+});
+
+/* ════════════════════════════════════════════════════
+   DUMMY DATA
+   ════════════════════════════════════════════════════ */
+
+function loadDummyData() {
+  if (getBuses().length > 0) return; // Already initialized
+
+  const buses = [
+    { licensePlate:'V-123-AB', name:'SummerVan', fuelType:'Diesel',     iconColor:'#5E8C61', createdAt:'2024-01-01T08:00:00Z' },
+    { licensePlate:'V-456-CD', name:'Sunny',     fuelType:'Benzine 95', iconColor:'#E8864A', createdAt:'2024-01-01T08:00:00Z' },
+    { licensePlate:'V-789-EF', name:'BosBus',    fuelType:'LPG',        iconColor:'#4A80B8', createdAt:'2024-01-01T08:00:00Z' },
+  ];
+  saveBuses(buses);
+
+  const now = Date.now();
+  const day = 86400000;
+
+  const entries = [
+    // SummerVan – 6 tankbeurten
+    { id:'d1', busLicensePlate:'V-123-AB', odometer:100000, liters:55, totalCost:105, note:'Eerste meting', datetime:new Date(now-60*day).toISOString(), excluded_from_stats:false },
+    { id:'d2', busLicensePlate:'V-123-AB', odometer:100620, liters:52, totalCost:99,  note:'',              datetime:new Date(now-48*day).toISOString(), excluded_from_stats:false },
+    { id:'d3', busLicensePlate:'V-123-AB', odometer:101200, liters:100,totalCost:190, note:'Vergeten tankbeurt', datetime:new Date(now-36*day).toISOString(), excluded_from_stats:true  },
+    { id:'d4', busLicensePlate:'V-123-AB', odometer:101820, liters:54, totalCost:103, note:'',              datetime:new Date(now-24*day).toISOString(), excluded_from_stats:false },
+    { id:'d5', busLicensePlate:'V-123-AB', odometer:102450, liters:53, totalCost:101, note:'Snelweg rit',   datetime:new Date(now-12*day).toISOString(), excluded_from_stats:false },
+    { id:'d6', busLicensePlate:'V-123-AB', odometer:103080, liters:52, totalCost:99,  note:'',              datetime:new Date(now-2*day).toISOString(),  excluded_from_stats:false },
+
+    // Sunny – 5 tankbeurten
+    { id:'d7', busLicensePlate:'V-456-CD', odometer:50000,  liters:40, totalCost:80,  note:'Start',         datetime:new Date(now-55*day).toISOString(), excluded_from_stats:false },
+    { id:'d8', busLicensePlate:'V-456-CD', odometer:50480,  liters:39, totalCost:78,  note:'',              datetime:new Date(now-44*day).toISOString(), excluded_from_stats:false },
+    { id:'d9', busLicensePlate:'V-456-CD', odometer:50960,  liters:38, totalCost:76,  note:'',              datetime:new Date(now-33*day).toISOString(), excluded_from_stats:false },
+    { id:'d10',busLicensePlate:'V-456-CD', odometer:51430,  liters:40, totalCost:80,  note:'',              datetime:new Date(now-20*day).toISOString(), excluded_from_stats:false },
+    { id:'d11',busLicensePlate:'V-456-CD', odometer:51900,  liters:38, totalCost:77,  note:'',              datetime:new Date(now-8*day).toISOString(),  excluded_from_stats:false },
+
+    // BosBus – 4 tankbeurten
+    { id:'d12',busLicensePlate:'V-789-EF', odometer:80000,  liters:60, totalCost:70,  note:'LPG voordelig', datetime:new Date(now-50*day).toISOString(), excluded_from_stats:false },
+    { id:'d13',busLicensePlate:'V-789-EF', odometer:80700,  liters:62, totalCost:72,  note:'',              datetime:new Date(now-38*day).toISOString(), excluded_from_stats:false },
+    { id:'d14',busLicensePlate:'V-789-EF', odometer:81400,  liters:61, totalCost:71,  note:'',              datetime:new Date(now-26*day).toISOString(), excluded_from_stats:false },
+    { id:'d15',busLicensePlate:'V-789-EF', odometer:82100,  liters:60, totalCost:70,  note:'',              datetime:new Date(now-10*day).toISOString(), excluded_from_stats:false },
+  ];
+  saveEntries(entries);
+
+  // Recalc all
+  ['V-123-AB','V-456-CD','V-789-EF'].forEach(p => recalcBusEntries(p));
+}
+</script>
+
+<!-- PWA manifest inline as link tag (create manifest.json separately for production) -->
+<script>
+// Inject a minimal PWA manifest dynamically
+const manifest = {
+  name: 'TankLog – Kampeerbusjes',
+  short_name: 'TankLog',
+  description: 'Tankregistratie voor bedrijfsbusjes',
+  start_url: './',
+  display: 'standalone',
+  background_color: '#F5EDD8',
+  theme_color: '#5E8C61',
+  icons: [
+    { src: 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y=".9em" font-size="90">🚐</text></svg>', sizes: '192x192', type: 'image/svg+xml' }
+  ]
+};
+const blob = new Blob([JSON.stringify(manifest)], {type:'application/manifest+json'});
+const link = document.createElement('link');
+link.rel = 'manifest'; link.href = URL.createObjectURL(blob);
+document.head.appendChild(link);
+</script>
+</body>
+</html>
