@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
 <meta name="theme-color" content="#5E8C61">
+<meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="Tankie">
@@ -678,7 +679,7 @@ function hideSpinner() { document.getElementById('spinner').classList.remove('ac
 async function getVoertuigen() {
   const { data, error } = await supabase.from('buses').select('*').order('created_at', { ascending: true });
   if (error) { console.error(error); return []; }
-  return data.map(mapBus);
+  return data.map(mapVoertuig);
 }
 
 async function getVoertuigEntries(plate) {
