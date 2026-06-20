@@ -562,7 +562,8 @@
     <div class="modal-title" id="voertuig-modal-title">Voertuig toevoegen</div>
     <div class="form-group">
       <label class="form-label">Kenteken * <span style="font-size:.7rem;color:var(--text-muted)">(unieke sleutel)</span></label>
-      <input type="text" class="form-input" id="voertuig-plate" placeholder="bv. V-123-AB">
+      <input type="text" class="form-input" id="voertuig-plate" placeholder="bv. JR-724-H" maxlength="12" autocomplete="off" oninput="this.value=this.value.toUpperCase()">
+      <div style="font-size:.75rem;color:var(--text-muted);margin-top:4px">De laatste 2 tekens worden gemaskeerd voor privacy (bv. <strong>JR-724-H</strong> → JR-72*-*)</div>
       <div class="error-msg" id="err-voertuig-plate"></div>
     </div>
     <div class="form-group">
@@ -678,7 +679,9 @@ function hideSpinner() { document.getElementById('spinner').classList.remove('ac
 
 async function getVoertuigen() {
   const { data, error } = await supabase.from('buses').select('*').order('created_at', { ascending: true });
-  if (error) { console.error(error); return []; }
+  if (error) { console.error('getVoertuigen error:', error.message, error); return []; }
+  console.log('getVoertuigen:', data?.length, 'voertuigen geladen');
+  if (!data || data.length === 0) return [];
   return data.map(mapVoertuig);
 }
 
@@ -1336,7 +1339,7 @@ async function saveVoertuig() {
   const fuel  = document.getElementById('voertuig-fuel').value;
   const color = document.getElementById('voertuig-color').value;
   let valid=true;
-  if (!plate) { setError('err-voertuig-plate','Vul een kenteken in.'); valid=false; }
+  if (!plate || plate.length < 3) { setError('err-voertuig-plate','Vul het kenteken in.'); valid=false; }
   if (!name)  { setError('err-voertuig-name','Vul een naam in.');      valid=false; }
   if (!fuel)  { setError('err-voertuig-fuel','Kies een brandstofsoort.'); valid=false; }
   if (!color) { setError('err-voertuig-color','Kies een kleur.'); valid=false; }
@@ -1345,10 +1348,11 @@ async function saveVoertuig() {
   showSpinner();
   try {
     if (!_editingPlate) {
-      const { data } = await supabase.from('buses').select('license_plate').eq('license_plate', plate).maybeSingle();
+      const masked = maskPlate(plate);
+      const { data } = await supabase.from('buses').select('license_plate').eq('license_plate', masked).maybeSingle();
       if (data) { setError('err-voertuig-plate','Dit kenteken bestaat al.'); hideSpinner(); return; }
     }
-    await upsertVoertuig({ licensePlate:plate, name, fuelType:fuel, iconColor:color });
+    await upsertVoertuig({ licensePlate: maskPlate(plate), name, fuelType:fuel, iconColor:color });
     closeVoertuigModal();
     renderVoertuigBeheer();
   } catch(e) { setError('err-voertuig-plate','Opslaan mislukt: '+e.message); }
@@ -1533,6 +1537,39 @@ function fmtL100(val) {
 function fmtMoney(val) {
   if (val == null) return '—';
   return '€ ' + Number(val).toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+
+/* ════════════════════════════════════════════════════
+   KENTEKENMASKER
+   Alleen de eerste 4 tekens worden opgeslagen.
+   Weergave wordt aangevuld met * tot standaard formaat.
+
+   Voorbeelden:
+     "JR-7"  → "JR-7*-*"
+     "V-12"  → "V-12*-**"
+     "AB12"  → "AB12**"
+
+   Formaat: de eerste 4 chars zijn de invoer,
+   daarna * tot totaal 8 tekens (excl. koppeltekens).
+   We tonen simpelweg: eerste 4 + "-*-*" als suffix.
+   ════════════════════════════════════════════════════ */
+function maskPlate(plate) {
+  // Mask the last 2 alphanumeric characters with *
+  // Dashes remain in place. Examples:
+  //   JR-724-H  → JR-72*-*
+  //   J-97-HYI  → J-97-H**
+  //   V-123-AB  → V-123-**
+  if (!plate) return '';
+  const chars = plate.toUpperCase().trim().split('');
+  let replaced = 0;
+  for (let i = chars.length - 1; i >= 0 && replaced < 2; i--) {
+    if (/[A-Z0-9]/.test(chars[i])) {
+      chars[i] = '*';
+      replaced++;
+    }
+  }
+  return chars.join('');
 }
 
 /* HELPERS */
